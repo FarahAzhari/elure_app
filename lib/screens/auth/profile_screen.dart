@@ -1,4 +1,5 @@
 import 'package:elure_app/models/api_models.dart';
+import 'package:elure_app/screens/admin/admin_dashboard_screen.dart';
 import 'package:elure_app/screens/auth/auth_screen.dart';
 import 'package:elure_app/services/local_storage_service.dart';
 import 'package:flutter/material.dart';
@@ -122,6 +123,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ]),
                   const SizedBox(height: 30),
+
+                  // Admin Section (conditionally displayed)
+                  if (_loggedInUser?.email ==
+                      'admin@mail.com') // Check for admin email
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildSectionTitle('Admin'),
+                        const SizedBox(height: 10),
+                        _buildSettingsList([
+                          _buildSettingsItem(
+                            icon: Icons.dashboard_outlined,
+                            title: 'Admin Dashboard',
+                            onTap: () {
+                              print('Admin Dashboard tapped');
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      const AdminDashboardScreen(),
+                                ),
+                              );
+                            },
+                          ),
+                        ]),
+                        const SizedBox(height: 30),
+                      ],
+                    ),
 
                   // Support Section
                   _buildSectionTitle('Support'),
