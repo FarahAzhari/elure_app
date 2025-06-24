@@ -1,3 +1,4 @@
+import 'package:elure_app/screens/admin/manage_products_screen.dart';
 import 'package:flutter/material.dart';
 
 class AdminDashboardScreen extends StatelessWidget {
@@ -54,12 +55,11 @@ class AdminDashboardScreen extends StatelessWidget {
               ElevatedButton(
                 onPressed: () {
                   print('Manage Products clicked');
-                  // Implement navigation to a product management screen
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Manage Products functionality not yet implemented.',
-                      ),
+                  // Navigate to the ManageProductsScreen
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const ManageProductsScreen(),
                     ),
                   );
                 },

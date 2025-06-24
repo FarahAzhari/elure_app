@@ -143,8 +143,8 @@ class Product {
   final int? id;
   final String? name;
   final String? description;
-  final int? price;
-  final int? stock;
+  final int? price; // Changed to int?
+  final int? stock; // Changed to int?
   final String? createdAt;
   final String? updatedAt;
 
@@ -159,12 +159,22 @@ class Product {
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
+    // Safely parse price and stock, handling potential string or double types
+    int? parseToInt(dynamic value) {
+      if (value == null) return null;
+      if (value is int) return value;
+      if (value is double) return value.toInt(); // Convert double to int
+      if (value is String)
+        return int.tryParse(value); // Try parsing string to int
+      return null;
+    }
+
     return Product(
       id: json['id'],
       name: json['name'],
       description: json['description'],
-      price: json['price'],
-      stock: json['stock'],
+      price: parseToInt(json['price']), // Use the safe parsing function
+      stock: parseToInt(json['stock']), // Use the safe parsing function
       createdAt: json['created_at'],
       updatedAt: json['updated_at'],
     );
