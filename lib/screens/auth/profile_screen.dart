@@ -1,6 +1,7 @@
+import 'package:elure_app/models/api_models.dart';
 import 'package:elure_app/screens/auth/auth_screen.dart';
+import 'package:elure_app/services/local_storage_service.dart';
 import 'package:flutter/material.dart';
-// Import AuthScreen for logout navigation
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -13,109 +14,151 @@ class _ProfileScreenState extends State<ProfileScreen> {
   static const Color primaryPink = Color(0xFFE91E63);
   bool _notificationEnabled = true; // State for the notification toggle
 
+  // Instance of LocalStorageService to retrieve user data and handle logout
+  final LocalStorageService _localStorageService = LocalStorageService();
+
+  // State to hold the logged-in user's data
+  User? _loggedInUser;
+  bool _isLoadingUser = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData(); // Load user data when the screen initializes
+  }
+
+  // Function to load user data from local storage
+  Future<void> _loadUserData() async {
+    setState(() {
+      _isLoadingUser = true;
+    });
+    try {
+      final user = await _localStorageService.getUserData();
+      setState(() {
+        _loggedInUser = user;
+        _isLoadingUser = false;
+      });
+      print('User data loaded: ${_loggedInUser?.name}');
+    } catch (e) {
+      setState(() {
+        _isLoadingUser = false;
+      });
+      print('Error loading user data: $e');
+    }
+  }
+
+  // Function to handle logout
+  Future<void> _handleLogout() async {
+    print('Attempting to log out...');
+    await _localStorageService.clearAllData(); // Clear all user-related data
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Logged out successfully!')));
+    // Navigate to AuthScreen and remove all previous routes from the stack
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (context) => const AuthScreen()),
+      (Route<dynamic> route) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[50], // Light grey background for the screen
       appBar: _buildAppBar(context),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            // User Profile Card
-            _buildProfileCard(),
-            const SizedBox(height: 30),
+      body: _isLoadingUser
+          ? const Center(child: CircularProgressIndicator(color: primaryPink))
+          : SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16.0,
+                vertical: 20.0,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  // User Profile Card
+                  _buildProfileCard(),
+                  const SizedBox(height: 30),
 
-            // General Section
-            _buildSectionTitle('General'),
-            const SizedBox(height: 10),
-            _buildSettingsList([
-              _buildSettingsItem(
-                icon: Icons.credit_card_outlined,
-                title: 'Payment method',
-                onTap: () => print('Payment method tapped'),
-              ),
-              _buildSettingsItem(
-                icon: Icons.location_on_outlined,
-                title: 'Location',
-                onTap: () => print('Location tapped'),
-              ),
-              _buildSettingsItem(
-                icon: Icons.language_outlined,
-                title: 'Language',
-                onTap: () => print('Language tapped'),
-              ),
-              _buildSettingsItem(
-                icon: Icons.notifications_none_outlined,
-                title: 'Notification',
-                trailing: Switch(
-                  value: _notificationEnabled,
-                  onChanged: (bool value) {
-                    setState(() {
-                      _notificationEnabled = value;
-                    });
-                    print('Notification toggled: $value');
-                  },
-                  activeColor: primaryPink, // Pink when on
-                ),
-                onTap: () {
-                  // Toggling the switch directly is usually preferred for switches
-                  // If you tap the row, you might toggle the switch
-                  setState(() {
-                    _notificationEnabled = !_notificationEnabled;
-                  });
-                },
-              ),
-            ]),
-            const SizedBox(height: 30),
+                  // General Section
+                  _buildSectionTitle('General'),
+                  const SizedBox(height: 10),
+                  _buildSettingsList([
+                    _buildSettingsItem(
+                      icon: Icons.credit_card_outlined,
+                      title: 'Payment method',
+                      onTap: () => print('Payment method tapped'),
+                    ),
+                    _buildSettingsItem(
+                      icon: Icons.location_on_outlined,
+                      title: 'Location',
+                      onTap: () => print('Location tapped'),
+                    ),
+                    _buildSettingsItem(
+                      icon: Icons.language_outlined,
+                      title: 'Language',
+                      onTap: () => print('Language tapped'),
+                    ),
+                    _buildSettingsItem(
+                      icon: Icons.notifications_none_outlined,
+                      title: 'Notification',
+                      trailing: Switch(
+                        value: _notificationEnabled,
+                        onChanged: (bool value) {
+                          setState(() {
+                            _notificationEnabled = value;
+                          });
+                          print('Notification toggled: $value');
+                        },
+                        activeColor: primaryPink, // Pink when on
+                      ),
+                      onTap: () {
+                        // Toggling the switch directly is usually preferred for switches
+                        // If you tap the row, you might toggle the switch
+                        setState(() {
+                          _notificationEnabled = !_notificationEnabled;
+                        });
+                      },
+                    ),
+                  ]),
+                  const SizedBox(height: 30),
 
-            // Support Section
-            _buildSectionTitle('Support'),
-            const SizedBox(height: 10),
-            _buildSettingsList([
-              _buildSettingsItem(
-                icon: Icons.chat_bubble_outline,
-                title: 'Feedback',
-                onTap: () => print('Feedback tapped'),
-              ),
-              _buildSettingsItem(
-                icon: Icons.share_outlined,
-                title: 'Share',
-                onTap: () => print('Share tapped'),
-              ),
-              _buildSettingsItem(
-                icon: Icons.help_outline,
-                title: 'Help',
-                onTap: () => print('Help tapped'),
-              ),
-            ]),
-            const SizedBox(height: 30),
+                  // Support Section
+                  _buildSectionTitle('Support'),
+                  const SizedBox(height: 10),
+                  _buildSettingsList([
+                    _buildSettingsItem(
+                      icon: Icons.chat_bubble_outline,
+                      title: 'Feedback',
+                      onTap: () => print('Feedback tapped'),
+                    ),
+                    _buildSettingsItem(
+                      icon: Icons.share_outlined,
+                      title: 'Share',
+                      onTap: () => print('Share tapped'),
+                    ),
+                    _buildSettingsItem(
+                      icon: Icons.help_outline,
+                      title: 'Help',
+                      onTap: () => print('Help tapped'),
+                    ),
+                  ]),
+                  const SizedBox(height: 30),
 
-            // Log Out Button
-            _buildSettingsList([
-              _buildSettingsItem(
-                icon: Icons.logout,
-                title: 'Log Out',
-                onTap: () {
-                  print('Log Out tapped');
-                  // Implement actual log out logic, e.g., navigate to login screen
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(
-                      builder: (context) => const AuthScreen(),
-                    ), // Navigate to AuthScreen
-                    (Route<dynamic> route) =>
-                        false, // Remove all previous routes
-                  );
-                },
-                isLogout:
-                    true, // Indicate this is a logout button for different styling
+                  // Log Out Button
+                  _buildSettingsList([
+                    _buildSettingsItem(
+                      icon: Icons.logout,
+                      title: 'Log Out',
+                      onTap: _handleLogout, // Call the logout handler
+                      isLogout:
+                          true, // Indicate this is a logout button for different styling
+                    ),
+                  ]),
+                  const SizedBox(height: 20), // Padding at bottom
+                ],
               ),
-            ]),
-            const SizedBox(height: 20), // Padding at bottom
-          ],
-        ),
-      ),
+            ),
     );
   }
 
@@ -184,19 +227,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: const <Widget>[
+              children: <Widget>[
                 Text(
-                  'Jenny Wilson',
-                  style: TextStyle(
+                  _loggedInUser?.name ??
+                      'Guest User', // Display actual user name
+                  style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: Colors.black,
                   ),
                 ),
-                SizedBox(height: 5),
+                const SizedBox(height: 5),
                 Text(
-                  'Jenny235@gmail.com',
-                  style: TextStyle(fontSize: 14, color: Colors.grey),
+                  _loggedInUser?.email ??
+                      'guest@example.com', // Display actual user email
+                  style: const TextStyle(fontSize: 14, color: Colors.grey),
                 ),
               ],
             ),

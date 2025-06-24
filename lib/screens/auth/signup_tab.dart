@@ -1,3 +1,6 @@
+import 'package:elure_app/models/api_models.dart';
+import 'package:elure_app/screens/home_screen.dart';
+import 'package:elure_app/services/api_service.dart';
 import 'package:flutter/material.dart';
 
 class SignUpTab extends StatefulWidget {
@@ -19,6 +22,9 @@ class _SignUpTabState extends State<SignUpTab> {
   // State variable to manage the visibility of the password.
   bool _isPasswordVisible = false;
 
+  // Instance of ApiService to make API calls
+  final ApiService _apiService = ApiService();
+
   // Define the primary pink color for consistency.
   static const Color primaryPink = Color(0xFFE91E63);
 
@@ -29,6 +35,61 @@ class _SignUpTabState extends State<SignUpTab> {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  // Function to handle sign up logic
+  Future<void> _handleSignUp() async {
+    // Validate returns true if the form is valid, or false otherwise.
+    if (_formKey.currentState!.validate()) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Signing up...')));
+
+      try {
+        final AuthResponse response = await _apiService.registerUser(
+          _nameController.text,
+          _emailController.text,
+          _passwordController.text,
+        );
+
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(response.message)));
+
+        // Navigate to home screen on successful registration
+        // Use pushReplacement to prevent going back to login/signup from home
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+        );
+      } on ErrorResponse catch (e) {
+        // Handle API specific errors (e.g., validation errors, email already registered)
+        String errorMessage = e.message;
+        if (e.errors != null) {
+          // Concatenate specific field errors if they exist
+          if (e.errors!.email != null) {
+            errorMessage += '\nEmail: ${e.errors!.email!.join(', ')}';
+          }
+          if (e.errors!.password != null) {
+            errorMessage += '\nPassword: ${e.errors!.password!.join(', ')}';
+          }
+        }
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(errorMessage)));
+        print('Sign Up Error: $errorMessage');
+      } catch (e) {
+        // Handle other unexpected errors (e.g., network issues)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('An unexpected error occurred: ${e.toString()}'),
+          ),
+        );
+        print('Unexpected Sign Up Error: $e');
+      }
+    } else {
+      print('Sign Up form validation failed.');
+    }
   }
 
   @override
@@ -173,21 +234,7 @@ class _SignUpTabState extends State<SignUpTab> {
               width: double.infinity,
               height: 60,
               child: ElevatedButton(
-                onPressed: () {
-                  // Validate returns true if the form is valid, or false otherwise.
-                  if (_formKey.currentState!.validate()) {
-                    // If the form is valid, display a snackbar. In a real app, you'd send data to a server.
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Processing Data')),
-                    );
-                    print('Sign Up attempt:');
-                    print('Name: ${_nameController.text}');
-                    print('Email: ${_emailController.text}');
-                    print('Password: ${_passwordController.text}');
-                  } else {
-                    print('Sign Up form validation failed.');
-                  }
-                },
+                onPressed: _handleSignUp, // Call the sign up handler
                 style: ElevatedButton.styleFrom(
                   backgroundColor: primaryPink,
                   shape: RoundedRectangleBorder(
