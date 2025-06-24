@@ -1,5 +1,5 @@
 import 'package:elure_app/screens/auth/profile_screen.dart';
-import 'package:elure_app/screens/brand_screen.dart';
+import 'package:elure_app/screens/brand/brand_screen.dart';
 import 'package:elure_app/screens/cart/cart_screen.dart';
 import 'package:elure_app/screens/category/category_screen.dart';
 import 'package:flutter/material.dart';
