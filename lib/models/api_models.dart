@@ -1,4 +1,14 @@
-import 'dart:convert';
+// Helper to safely parse dynamic values to int?
+int? _parseIntSafely(dynamic value) {
+  if (value == null) return null;
+  if (value is int) return value;
+  if (value is double) return value.toInt();
+  if (value is String) {
+    // Try to parse string to int, return null if parsing fails
+    return int.tryParse(value);
+  }
+  return null; // Return null for unsupported types
+}
 
 // --- Generic Response Wrapper ---
 // A general structure for API responses that contain a message and optional data.
@@ -52,8 +62,9 @@ class ErrorResponse {
   ErrorResponse({required this.message, this.errors});
 
   factory ErrorResponse.fromJson(Map<String, dynamic> json) {
+    // Ensure message is never null, providing a fallback string if missing from JSON
     return ErrorResponse(
-      message: json['message'],
+      message: json['message']?.toString() ?? 'An unknown error occurred.',
       errors: json['errors'] != null
           ? ErrorDetail.fromJson(json['errors'])
           : null,
@@ -82,7 +93,7 @@ class User {
 
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
-      id: json['id'],
+      id: _parseIntSafely(json['id']), // Use safe parsing
       name: json['name'],
       email: json['email'],
       emailVerifiedAt: json['email_verified_at'],
@@ -143,8 +154,8 @@ class Product {
   final int? id;
   final String? name;
   final String? description;
-  final int? price; // Changed to int?
-  final int? stock; // Changed to int?
+  final int? price;
+  final int? stock;
   final String? createdAt;
   final String? updatedAt;
 
@@ -159,22 +170,12 @@ class Product {
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
-    // Safely parse price and stock, handling potential string or double types
-    int? parseToInt(dynamic value) {
-      if (value == null) return null;
-      if (value is int) return value;
-      if (value is double) return value.toInt(); // Convert double to int
-      if (value is String)
-        return int.tryParse(value); // Try parsing string to int
-      return null;
-    }
-
     return Product(
-      id: json['id'],
+      id: _parseIntSafely(json['id']), // Use safe parsing
       name: json['name'],
       description: json['description'],
-      price: parseToInt(json['price']), // Use the safe parsing function
-      stock: parseToInt(json['stock']), // Use the safe parsing function
+      price: _parseIntSafely(json['price']), // Use safe parsing
+      stock: _parseIntSafely(json['stock']), // Use safe parsing
       createdAt: json['created_at'],
       updatedAt: json['updated_at'],
     );
@@ -236,9 +237,9 @@ class CartProduct {
 
   factory CartProduct.fromJson(Map<String, dynamic> json) {
     return CartProduct(
-      id: json['id'],
+      id: _parseIntSafely(json['id']), // Use safe parsing
       name: json['name'],
-      price: json['price'],
+      price: _parseIntSafely(json['price']), // Use safe parsing
     );
   }
 
@@ -258,12 +259,12 @@ class CartItem {
 
   factory CartItem.fromJson(Map<String, dynamic> json) {
     return CartItem(
-      id: json['id'],
+      id: _parseIntSafely(json['id']), // Use safe parsing
       product: json['product'] != null
           ? CartProduct.fromJson(json['product'])
           : null,
-      quantity: json['quantity'],
-      subtotal: json['subtotal'],
+      quantity: _parseIntSafely(json['quantity']), // Use safe parsing
+      subtotal: _parseIntSafely(json['subtotal']), // Use safe parsing
     );
   }
 }
@@ -303,10 +304,10 @@ class CartAddData {
 
   factory CartAddData.fromJson(Map<String, dynamic> json) {
     return CartAddData(
-      id: json['id'],
-      userId: json['user_id'],
-      productId: json['product_id'],
-      quantity: json['quantity'],
+      id: _parseIntSafely(json['id']), // Use safe parsing
+      userId: _parseIntSafely(json['user_id']), // Use safe parsing
+      productId: _parseIntSafely(json['product_id']), // Use safe parsing
+      quantity: _parseIntSafely(json['quantity']), // Use safe parsing
       createdAt: json['created_at'],
       updatedAt: json['updated_at'],
     );
@@ -343,7 +344,7 @@ class CheckoutItem {
       product: json['product'] != null
           ? CartProduct.fromJson(json['product'])
           : null,
-      quantity: json['quantity'],
+      quantity: _parseIntSafely(json['quantity']), // Use safe parsing
     );
   }
 }
@@ -368,14 +369,14 @@ class CheckoutData {
 
   factory CheckoutData.fromJson(Map<String, dynamic> json) {
     return CheckoutData(
-      id: json['id'],
-      userId: json['user_id'],
+      id: _parseIntSafely(json['id']), // Use safe parsing
+      userId: _parseIntSafely(json['user_id']), // Use safe parsing
       items: json['items'] != null
           ? List<CheckoutItem>.from(
               json['items'].map((x) => CheckoutItem.fromJson(x)),
             )
           : null,
-      total: json['total'],
+      total: _parseIntSafely(json['total']), // Use safe parsing
       createdAt: json['created_at'],
       updatedAt: json['updated_at'],
     );

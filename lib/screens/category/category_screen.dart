@@ -10,9 +10,6 @@ class CategoryScreen extends StatefulWidget {
 }
 
 class _CategoryScreenState extends State<CategoryScreen> {
-  // Define the primary pink color for consistency.
-  static const Color primaryPink = Color(0xFFE91E63);
-
   // Sample data for categories. In a real application, this would come from an API.
   final List<Map<String, dynamic>> _categories = [
     {

@@ -1,6 +1,5 @@
 import 'package:elure_app/screens/product/product_detail_screen.dart';
 import 'package:flutter/material.dart';
-// Import the new product detail screen
 
 class CategoryDetailScreen extends StatefulWidget {
   final String categoryName;
@@ -15,7 +14,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
   // Define the primary pink color for consistency.
   static const Color primaryPink = Color(0xFFE91E63);
 
-  // Sample product data, filtered by categoryName in a real app.
+  // Sample product data with full details, filtered by categoryName in a real app.
   // For now, this is static dummy data to show the layout.
   final List<Map<String, String>> _products = [
     {
@@ -24,49 +23,96 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
       'originalPrice': '\$40.00',
       'currentPrice': '\$27.00',
       'discount': '20%',
-      'imageUrl': 'https://placehold.co/150x150/ADD8E6/000000?text=P1',
+      'imageUrl': 'https://placehold.co/150x150/ADD8E6/000000?text=Hair',
+      'description':
+          'A fantastic product for hair care, providing essential nutrients for healthy and shiny hair. This product is designed to revitalize and protect your hair from daily damage. Suitable for all hair types.',
+      'sizes': '5ml,15ml,50ml', // Dummy sizes
+      'variants': 'Red,Blue,Green', // Dummy variants
     },
     {
-      'name': 'Nourkrin Femme...',
+      'name': 'Nourkrin Femme Shampoo',
       'brand': 'Luscenta',
       'originalPrice': '\$50.00',
       'currentPrice': '\$35.00',
-      'discount': '20%',
-      'imageUrl': 'https://placehold.co/150x150/90EE90/000000?text=P2',
+      'discount': '30%',
+      'imageUrl': 'https://placehold.co/150x150/90EE90/000000?text=Shampoo',
+      'description':
+          'Advanced shampoo formulated to boost hair strength and volume. Infused with natural extracts to nourish the scalp and promote healthy hair growth. Experience the difference with every wash.',
+      'sizes': '50ml,100ml,200ml',
+      'variants': 'Normal,Oily,Dry',
     },
     {
-      'name': 'Dior Bronze Afte...',
+      'name': 'Dior Bronze After Sun',
       'brand': 'Bloomelle',
       'originalPrice': '\$40.00',
       'currentPrice': '\$27.00',
-      'discount': '20%',
-      'imageUrl': 'https://placehold.co/150x150/FFB6C1/000000?text=P3',
+      'discount': '15%',
+      'imageUrl': 'https://placehold.co/150x150/FFB6C1/000000?text=Sun',
+      'description':
+          'Soothing after-sun lotion for radiant and hydrated skin. It helps to calm sunburned skin and prolong your tan. Non-greasy formula that absorbs quickly for instant relief.',
+      'sizes': '75ml,150ml',
+      'variants': 'N/A',
     },
     {
-      'name': 'Face Primer Tube...',
+      'name': 'Face Primer Tube',
       'brand': 'Naturae',
       'originalPrice': '\$50.00',
       'currentPrice': '\$35.00',
-      'discount': '20%',
-      'imageUrl': 'https://placehold.co/150x150/DDA0DD/000000?text=P4',
+      'discount': '25%',
+      'imageUrl': 'https://placehold.co/150x150/DDA0DD/000000?text=Primer',
+      'description':
+          'Perfect base for your makeup, ensuring long-lasting wear and a smooth canvas. Minimizes pores and fine lines, leaving your skin flawless and ready for makeup application.',
+      'sizes': '30ml',
+      'variants': 'Matte,Dewy,Illuminating',
     },
     {
-      'name': 'Spray Bottle - Ba...',
+      'name': 'Spray Bottle - Basic',
       'brand': 'Skinova',
       'originalPrice': '\$40.00',
       'currentPrice': '\$27.00',
-      'discount': '20%',
-      'imageUrl': 'https://placehold.co/150x150/B0E0E6/000000?text=P5',
+      'discount': '10%',
+      'imageUrl': 'https://placehold.co/150x150/B0E0E6/000000?text=Bottle',
+      'description':
+          'Versatile spray bottle for various beauty applications, from setting spray to toner. Durable and leak-proof design, perfect for travel or daily use.',
+      'sizes': '100ml,250ml',
+      'variants': 'N/A',
     },
     {
-      'name': 'Nourkrin Femme...',
+      'name': 'Nourkrin Femme Conditioner',
       'brand': 'Beautifique',
       'originalPrice': '\$50.00',
       'currentPrice': '\$35.00',
-      'discount': '20%',
-      'imageUrl': 'https://placehold.co/150x150/F08080/000000?text=P6',
+      'discount': '30%',
+      'imageUrl': 'https://placehold.co/150x150/F08080/000000?text=Cond',
+      'description':
+          'Complementary conditioner to keep your hair smooth and shiny. It detangles and softens hair, reducing breakage and improving manageability. For best results, use after Nourkrin Femme Shampoo.',
+      'sizes': '50ml,100ml,200ml',
+      'variants': 'Normal,Dry,ColorTreated',
     },
-    // Add more dummy products here if needed
+    {
+      'name': 'Vitamin C Serum',
+      'brand': 'VitaGlow',
+      'originalPrice': '\$60.00',
+      'currentPrice': '\$45.00',
+      'discount': '25%',
+      'imageUrl': 'https://placehold.co/150x150/FFD700/000000?text=VitC',
+      'description':
+          'Brightening serum with potent Vitamin C for a radiant complexion. Reduces dark spots and evens skin tone. A powerful antioxidant that protects against environmental damage.',
+      'sizes': '15ml,30ml',
+      'variants': 'N/A',
+    },
+    {
+      'name': 'Hydrating Face Mask',
+      'brand': 'AquaSense',
+      'originalPrice': '\$25.00',
+      'currentPrice': '\$18.00',
+      'discount': '28%',
+      'imageUrl': 'https://placehold.co/150x150/87CEEB/000000?text=Mask',
+      'description':
+          'Deeply hydrating mask for supple and soft skin. Infused with hyaluronic acid and natural plant extracts, it provides intense moisture and leaves your skin feeling refreshed.',
+      'sizes': '50g,100g',
+      'variants': 'Sheet,Clay,Gel',
+    },
   ];
 
   @override
@@ -243,8 +289,9 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                     ),
                   ),
                 ),
-                if (product['discount'] !=
-                    null) // Show discount tag if available
+                if (product['discount'] != null &&
+                    product['discount'] !=
+                        'N/A') // Show discount tag if available and not N/A
                   Positioned(
                     top: 10,
                     left: 10,
@@ -336,15 +383,18 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                   const SizedBox(height: 5),
                   Row(
                     children: [
-                      Text(
-                        product['originalPrice']!,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[600],
-                          decoration: TextDecoration
-                              .lineThrough, // Strikethrough for original price
+                      if (product['originalPrice'] != null &&
+                          product['originalPrice'] !=
+                              product['currentPrice']) // Show original price only if different from current
+                        Text(
+                          product['originalPrice']!,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                            decoration: TextDecoration
+                                .lineThrough, // Strikethrough for original price
+                          ),
                         ),
-                      ),
                       const SizedBox(width: 8),
                       Text(
                         product['currentPrice']!,

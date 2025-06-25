@@ -1,9 +1,11 @@
+import 'package:elure_app/models/api_models.dart';
 import 'package:elure_app/screens/auth/profile_screen.dart';
 import 'package:elure_app/screens/brand/brand_screen.dart';
 import 'package:elure_app/screens/cart/cart_screen.dart';
 import 'package:elure_app/screens/category/category_screen.dart';
+import 'package:elure_app/screens/product/product_detail_screen.dart';
+import 'package:elure_app/services/api_service.dart';
 import 'package:flutter/material.dart';
-// Import the new profile screen
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -18,6 +20,52 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Add a state variable to manage the current index of the bottom navigation bar
   int _selectedIndex = 0;
+
+  // Instance of ApiService
+  final ApiService _apiService = ApiService();
+
+  // State variables for products
+  List<Product> _bestSellerProducts = [];
+  bool _isLoadingProducts = true;
+  String? _productsErrorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchBestSellerProducts(); // Fetch products when the screen initializes
+  }
+
+  // Function to fetch best seller products from the API
+  Future<void> _fetchBestSellerProducts() async {
+    setState(() {
+      _isLoadingProducts = true;
+      _productsErrorMessage = null; // Clear previous error messages
+    });
+
+    try {
+      final ProductListResponse response = await _apiService.getProducts();
+      setState(() {
+        _bestSellerProducts =
+            response.data ?? []; // Update the list with fetched data
+        _isLoadingProducts = false;
+      });
+      print(
+        'Products fetched successfully: ${_bestSellerProducts.length} items',
+      );
+    } on ErrorResponse catch (e) {
+      setState(() {
+        _productsErrorMessage = e.message;
+        _isLoadingProducts = false;
+      });
+      print('Error fetching products: ${e.message}');
+    } catch (e) {
+      setState(() {
+        _productsErrorMessage = 'Failed to load products: ${e.toString()}';
+        _isLoadingProducts = false;
+      });
+      print('Unexpected error fetching products: $e');
+    }
+  }
 
   // Helper function to handle bottom navigation bar taps
   void _onItemTapped(int index) {
@@ -433,89 +481,118 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Builds the grid of best seller products
   Widget _buildBestSellersGrid() {
-    // Using dummy product data. In a real app, this would come from a data source.
-    final List<Map<String, String>> products = [
-      {
-        'name': 'Skincare Product A',
-        'price': '\$35.00',
-        'discount': '50%',
-        'image': 'https://placehold.co/150x150/FF00FF/FFFFFF?text=Product+1',
-      },
-      {
-        'name': 'Makeup Kit B',
-        'price': '\$22.50',
-        'discount': '20%',
-        'image': 'https://placehold.co/150x150/FF00FF/FFFFFF?text=Product+2',
-      },
-      {
-        'name': 'Perfume C',
-        'price': '\$49.99',
-        'discount': '10%',
-        'image': 'https://placehold.co/150x150/FF00FF/FFFFFF?text=Product+3',
-      },
-      {
-        'name': 'Lotion D',
-        'price': '\$15.00',
-        'discount': '15%',
-        'image': 'https://placehold.co/150x150/FF00FF/FFFFFF?text=Product+4',
-      },
-    ];
-
-    return GridView.builder(
-      shrinkWrap: true, // Take only as much space as needed
-      physics:
-          const NeverScrollableScrollPhysics(), // Disable scrolling within the grid
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2, // Two items per row
-        crossAxisSpacing: 15, // Horizontal spacing
-        mainAxisSpacing: 15, // Vertical spacing
-        childAspectRatio:
-            0.7, // Aspect ratio of each grid item (height is roughly 1.4 times width)
-      ),
-      itemCount: products.length,
-      itemBuilder: (context, index) {
-        return _buildProductCard(products[index]);
-      },
-    );
+    if (_isLoadingProducts) {
+      return const Center(child: CircularProgressIndicator(color: primaryPink));
+    } else if (_productsErrorMessage != null) {
+      return Center(
+        child: Text(
+          _productsErrorMessage!,
+          style: const TextStyle(color: Colors.red, fontSize: 16),
+          textAlign: TextAlign.center,
+        ),
+      );
+    } else if (_bestSellerProducts.isEmpty) {
+      return const Center(
+        child: Text(
+          'No best seller products found.',
+          style: TextStyle(color: Colors.grey, fontSize: 16),
+        ),
+      );
+    } else {
+      return GridView.builder(
+        shrinkWrap: true, // Take only as much space as needed
+        physics:
+            const NeverScrollableScrollPhysics(), // Disable scrolling within the grid
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2, // Two items per row
+          crossAxisSpacing: 15, // Horizontal spacing
+          mainAxisSpacing: 15, // Vertical spacing
+          childAspectRatio: 0.7, // Aspect ratio of each grid item
+        ),
+        itemCount: _bestSellerProducts.length,
+        itemBuilder: (context, index) {
+          return _buildProductCard(_bestSellerProducts[index]);
+        },
+      );
+    }
   }
 
   // Helper widget to build individual product cards
-  Widget _buildProductCard(Map<String, String> product) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white, // White background for the card
-        borderRadius: BorderRadius.circular(15), // Rounded corners
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
+  Widget _buildProductCard(Product product) {
+    // Generate dummy values for fields not provided by the current API
+    final String dummyBrand = 'Glowora';
+    final String dummyImageUrl =
+        'https://placehold.co/150x150/FF00FF/FFFFFF?text=${product.name?.substring(0, 1) ?? 'P'}';
+    final String dummyDiscount = '20%'; // Example dummy discount
+
+    // Use API price for both original and current for now, if discount not applicable
+    final String displayOriginalPrice =
+        '\$${product.price?.toStringAsFixed(0) ?? '0'}.00';
+    final String displayCurrentPrice =
+        '\$${product.price?.toStringAsFixed(0) ?? '0'}.00';
+
+    return GestureDetector(
+      onTap: () {
+        print('Tapped on product: ${product.name}');
+        // Pass a map containing API data and dummy data to ProductDetailScreen
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ProductDetailScreen(
+              product: {
+                'id': product.id.toString(),
+                'name': product.name ?? 'Unknown Product',
+                'description':
+                    product.description ?? 'No description available.',
+                'brand': dummyBrand,
+                'originalPrice': displayOriginalPrice,
+                'currentPrice': displayCurrentPrice,
+                'discount': dummyDiscount,
+                'imageUrl': dummyImageUrl,
+                'sizes': '5ml,15ml,50ml', // Dummy sizes
+                'variants': 'Red,Blue,Green', // Dummy variants
+                'stock':
+                    product.stock?.toString() ?? '0', // Pass stock as string
+              },
+            ),
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          // Product Image with Discount Tag
-          Stack(
-            children: [
-              ClipRRect(
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(15),
-                ),
-                child: Image.network(
-                  product['image']!,
-                  height: 150, // Fixed height for the image
-                  width: double.infinity, // Take full width of the card
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Container(
-                    height: 150,
-                    color: Colors.grey[200],
-                    child: const Center(child: Icon(Icons.error)),
+        );
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white, // White background for the card
+          borderRadius: BorderRadius.circular(15), // Rounded corners
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            // Product Image with Discount Tag
+            Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(15),
+                  ),
+                  child: Image.network(
+                    dummyImageUrl, // Use dummy image URL
+                    height: 150, // Fixed height for the image
+                    width: double.infinity, // Take full width of the card
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => Container(
+                      height: 150,
+                      color: Colors.grey[200],
+                      child: const Center(child: Icon(Icons.error)),
+                    ),
                   ),
                 ),
-              ),
-              if (product['discount'] != null) // Show discount tag if available
+                // Discount tag
                 Positioned(
                   top: 10,
                   left: 10,
@@ -529,7 +606,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
-                      product['discount']!,
+                      dummyDiscount, // Use dummy discount
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 12,
@@ -538,63 +615,65 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                 ),
-              Positioned(
-                top: 10,
-                right: 10,
-                child: Container(
-                  padding: const EdgeInsets.all(5),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 5,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
+                Positioned(
+                  top: 10,
+                  right: 10,
+                  child: Container(
+                    padding: const EdgeInsets.all(5),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 5,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      Icons.favorite_border,
+                      color: Colors.grey[700],
+                      size: 20,
+                    ),
                   ),
-                  child: Icon(
-                    Icons.favorite_border,
-                    color: Colors.grey[700],
-                    size: 20,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          Padding(
-            padding: const EdgeInsets.all(10.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  product['name']!,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  product['price']!,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: primaryPink, // Pink for price
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  'Glowora', // Placeholder brand name
-                  style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                 ),
               ],
             ),
-          ),
-        ],
+            Padding(
+              padding: const EdgeInsets.all(10.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    product.name ??
+                        'Unknown Product', // Use product name from API
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    displayCurrentPrice, // Use current price (from API price)
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: primaryPink, // Pink for price
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    dummyBrand, // Use dummy brand name
+                    style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
