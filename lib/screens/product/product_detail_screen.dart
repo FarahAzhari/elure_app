@@ -48,6 +48,14 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
   // TabController for the TabPageSelector
   late TabController _tabController;
 
+  // State variables for categories
+  Map<int, Category> _categoriesMap =
+      {}; // To map category IDs to category names
+
+  // Combined loading state for initial data
+  bool _isLoadingInitialData = true;
+  String? _initialDataErrorMessage;
+
   @override
   void initState() {
     super.initState();
@@ -72,8 +80,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
       vsync: this,
     );
 
-    // Load the quantity of this product already in the user's cart
-    _loadCurrentProductCartQuantity();
+    // Fetch initial data including categories and then cart quantity
+    _fetchInitialData();
 
     // Initialize selected size and variant based on dummy logic for now
     // as these fields are not present in the current Product API model.
@@ -99,6 +107,79 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     _pageController.dispose();
     _tabController.dispose();
     super.dispose();
+  }
+
+  // Function to fetch initial data: brands, categories, and then cart quantity
+  Future<void> _fetchInitialData() async {
+    setState(() {
+      _isLoadingInitialData = true;
+      _initialDataErrorMessage = null;
+    });
+
+    try {
+      // Fetch categories (and brands, though brands are passed already)
+      await _fetchCategories();
+
+      // Now load the quantity of this product already in the user's cart
+      await _loadCurrentProductCartQuantity();
+
+      if (mounted) {
+        setState(() {
+          _isLoadingInitialData = false;
+        });
+      }
+    } on ErrorResponse catch (e) {
+      if (mounted) {
+        setState(() {
+          _initialDataErrorMessage = e.message;
+          _isLoadingInitialData = false;
+        });
+        print('ProductDetail: Error fetching initial data: ${e.message}');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _initialDataErrorMessage =
+              'ProductDetail: Failed to load initial data: ${e.toString()}';
+          _isLoadingInitialData = false;
+        });
+        print('ProductDetail: Unexpected error fetching initial data: $e');
+      }
+    }
+  }
+
+  // Function to fetch categories and create a map for quick lookup
+  Future<void> _fetchCategories() async {
+    try {
+      final categoryResponse = await _apiService.getCategories();
+      if (mounted) {
+        setState(() {
+          _categoriesMap = {
+            for (var c in categoryResponse.data ?? []) c.id!: c,
+          };
+        });
+      }
+    } on ErrorResponse catch (e) {
+      print('ProductDetail: Error fetching categories: ${e.message}');
+      // Propagate error to _initialDataErrorMessage
+      if (mounted) {
+        setState(() {
+          _initialDataErrorMessage = _initialDataErrorMessage != null
+              ? '${_initialDataErrorMessage}\nCategories: ${e.message}'
+              : 'Categories: ${e.message}';
+        });
+      }
+    } catch (e) {
+      print('ProductDetail: Unexpected error fetching categories: $e');
+      // Propagate error to _initialDataErrorMessage
+      if (mounted) {
+        setState(() {
+          _initialDataErrorMessage = _initialDataErrorMessage != null
+              ? '${_initialDataErrorMessage}\nCategories: ${e.toString()}'
+              : 'Categories: ${e.toString()}';
+        });
+      }
+    }
   }
 
   // Function to load the current quantity of this product in the user's cart
@@ -242,14 +323,44 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
 
   @override
   Widget build(BuildContext context) {
+    // Show a loading indicator if initial data is still loading
+    if (_isLoadingInitialData) {
+      return const Scaffold(
+        backgroundColor: Colors.white,
+        body: Center(child: CircularProgressIndicator(color: primaryPink)),
+      );
+    }
+
+    // Show error message if initial data loading failed
+    if (_initialDataErrorMessage != null) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Text(
+              _initialDataErrorMessage!,
+              style: const TextStyle(color: Colors.red, fontSize: 16),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      );
+    }
+
     // Extract product details directly from the Product object
     final String name = widget.product.name ?? 'Unknown Product';
     final String brand = widget.brandName; // Use the passed brand name
     final String description =
         widget.product.description ?? 'No description available.';
 
+    // Resolve category name
+    final String category =
+        _categoriesMap[widget.product.categoryId]?.name ?? 'Unknown Category';
+
     final double? productPrice = widget.product.price?.toDouble();
-    final int? productDiscount = widget.product.discount;
+    // Corrected type and explicit conversion for productDiscount
+    final double? productDiscount = widget.product.discount?.toDouble();
 
     String displayOriginalPrice =
         '\$${productPrice?.toStringAsFixed(0) ?? '0'}.00';
@@ -258,14 +369,15 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     if (productPrice != null &&
         productDiscount != null &&
         productDiscount > 0) {
-      double discountedPrice = productPrice * (1 - productDiscount);
+      // Assuming productDiscount is a whole number percentage (e.g., 10 for 10%), divide by 100
+      double discountedPrice = productPrice * (1 - (productDiscount / 100));
       displayCurrentPrice = '\$${discountedPrice.toStringAsFixed(0)}.00';
     } else {
       displayCurrentPrice = '\$${productPrice?.toStringAsFixed(0) ?? '0'}.00';
     }
 
     String displayDiscount = (productDiscount != null && productDiscount > 0)
-        ? '${(productDiscount * 100).toStringAsFixed(0)}%'
+        ? '${productDiscount.toStringAsFixed(0)}%' // Display as XX%
         : ''; // Empty string if no discount
 
     // Prepare image URLs for PageView
@@ -394,7 +506,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   Text(
-                    brand,
+                    // Display Brand and Category
+                    '$brand · $category',
                     style: TextStyle(
                       fontSize: 16,
                       color: Colors.grey[600],
