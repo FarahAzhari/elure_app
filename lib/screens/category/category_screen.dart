@@ -2,6 +2,7 @@ import 'package:elure_app/models/api_models.dart'; // Import API models for Cate
 import 'package:elure_app/screens/category/category_detail_screen.dart';
 import 'package:elure_app/services/api_service.dart'; // Import ApiService
 import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart'; // Import the Lottie package
 
 class CategoryScreen extends StatefulWidget {
   const CategoryScreen({super.key});
@@ -21,6 +22,11 @@ class _CategoryScreenState extends State<CategoryScreen> {
   List<Category> _categories = [];
   bool _isLoadingCategories = true;
   String? _categoriesErrorMessage;
+
+  // Lottie animation URL to be used for all categories
+  // You can replace this with any Lottie animation URL you prefer from LottieFiles.com
+  static const String _lottieCategoryIconUrl =
+      'https://lottie.host/f85bc0f6-2c32-4483-aa18-52345c4800c1/sVb4wfsdET.json';
 
   @override
   void initState() {
@@ -167,7 +173,7 @@ class _CategoryScreenState extends State<CategoryScreen> {
     );
   }
 
-  // Builds the list of categories (now using fetched data)
+  // Builds the list of categories (now using fetched data and Lottie animation)
   Widget _buildCategoryList() {
     if (_isLoadingCategories) {
       return const Center(
@@ -206,8 +212,6 @@ class _CategoryScreenState extends State<CategoryScreen> {
         itemCount: _categories.length,
         itemBuilder: (context, index) {
           final category = _categories[index];
-          // As the API Category model doesn't include productCount or subCategories,
-          // we simplify to a non-expandable list item.
           return Column(
             children: [
               ListTile(
@@ -215,12 +219,29 @@ class _CategoryScreenState extends State<CategoryScreen> {
                   horizontal: 16.0,
                   vertical: 8.0,
                 ),
-                leading: CircleAvatar(
-                  radius: 25,
-                  backgroundColor: Colors.grey[100],
-                  // Placeholder image as Category model does not have an image field
-                  backgroundImage: NetworkImage(
-                    'https://placehold.co/100x100/F0F0F0/000000?text=${category.name?.substring(0, 1) ?? 'C'}',
+                leading: Container(
+                  // Replaced CircleAvatar with Container for Lottie
+                  width: 50, // Match the radius * 2
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: primaryPink.withOpacity(
+                      0.1,
+                    ), // Light pink background
+                    shape: BoxShape.circle,
+                  ),
+                  child: ClipOval(
+                    // Clip the Lottie animation to a circle
+                    child: Lottie.network(
+                      _lottieCategoryIconUrl,
+                      fit: BoxFit.cover,
+                      width: 50,
+                      height: 50,
+                      repeat: true, // Loop the animation
+                      errorBuilder: (context, error, stackTrace) => const Icon(
+                        Icons.category,
+                        color: primaryPink,
+                      ), // Fallback to icon on error
+                    ),
                   ),
                 ),
                 title: Text(

@@ -24,6 +24,9 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
   Map<int, Brand> _brandsMap = {}; // To map brand IDs to brand names
   Map<String, int> _categoriesNameToIdMap = {}; // To map category names to IDs
 
+  // State variable to hold the count of products in the current category
+  int _productCount = 0;
+
   bool _isLoadingProducts = true;
   String? _productsErrorMessage;
   bool _isLoadingBrands = true;
@@ -40,6 +43,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
 
   Future<void> _fetchInitialData() async {
     await Future.wait([_fetchBrands(), _fetchCategoriesForMapping()]);
+    // After brands and category mapping are ready, fetch products
     _fetchProductsByCategory();
   }
 
@@ -141,14 +145,13 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                   .toList() ??
               [];
         } else {
-          // If category ID not found for the given name, show all products or a specific message
-          // For now, if no specific category ID matched, we'll assume no products for this category.
-          // In a real app, you might want to show a default set or an error.
+          // If category ID not found for the given name, assume no products for this category.
           print('Category ID not found for: ${widget.categoryName}');
         }
 
         setState(() {
           _products = filteredProducts;
+          _productCount = filteredProducts.length; // Update product count
           _isLoadingProducts = false;
         });
         print(
@@ -220,7 +223,8 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
         },
       ),
       title: Text(
-        widget.categoryName, // Display the category name passed to the screen
+        // Display the category name and product count
+        '${widget.categoryName} (${_productCount} products)',
         style: const TextStyle(
           color: Colors.black,
           fontSize: 20,
@@ -284,6 +288,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
 
   // Builds the grid of products
   Widget _buildProductGrid() {
+    // Check all loading states for a comprehensive loading indicator
     if (_isLoadingProducts || _isLoadingBrands || _isLoadingCategoriesMapping) {
       return const Center(
         child: Padding(
@@ -370,7 +375,8 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
     if (productPrice != null &&
         productDiscount != null &&
         productDiscount > 0) {
-      double discountedPrice = productPrice * (1 - productDiscount);
+      // Corrected discount calculation: divide by 100 as discount is a percentage integer
+      double discountedPrice = productPrice * (1 - (productDiscount / 100));
       displayCurrentPrice = '\$${discountedPrice.toStringAsFixed(0)}.00';
     } else {
       displayCurrentPrice = '\$${productPrice?.toStringAsFixed(0) ?? '0'}.00';
@@ -378,8 +384,8 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
 
     final String displayDiscount =
         (productDiscount != null && productDiscount > 0)
-        ? '${(productDiscount * 100).toStringAsFixed(0)}%'
-        : '0%'; // Convert discount to percentage string
+        ? '${productDiscount.toStringAsFixed(0)}%' // Display as percentage string
+        : '0%';
 
     // Get brand name from the map using brandId
     final String brandName =
@@ -450,7 +456,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Text(
-                        displayDiscount,
+                        '$displayDiscount OFF', // Display discount as "XX% OFF"
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 12,
