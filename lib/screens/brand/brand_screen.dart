@@ -1,4 +1,8 @@
+import 'package:elure_app/models/api_models.dart'; // Import API models for Brand, Product
+import 'package:elure_app/screens/brand/brand_detail_screen.dart'; // Import the new BrandDetailScreen
+import 'package:elure_app/services/api_service.dart'; // Import ApiService
 import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart'; // Import the Lottie package
 
 class BrandScreen extends StatefulWidget {
   const BrandScreen({super.key});
@@ -11,55 +15,133 @@ class _BrandScreenState extends State<BrandScreen> {
   // Define the primary pink color for consistency.
   static const Color primaryPink = Color(0xFFE91E63);
 
-  // Sample data for featured brands. In a real application, this would come from an API.
-  final List<Map<String, String>> _featuredBrands = [
-    {
-      'name': 'L\'Oréal',
-      'imageUrl': 'https://placehold.co/100x100/F0F0F0/000000?text=L',
-    },
-    {
-      'name': 'Estée',
-      'imageUrl': 'https://placehold.co/100x100/F0F0F0/000000?text=E',
-    },
-    {
-      'name': 'Maybelline',
-      'imageUrl': 'https://placehold.co/100x100/F0F0F0/000000?text=M',
-    },
-    {
-      'name': 'MAC',
-      'imageUrl': 'https://placehold.co/100x100/F0F0F0/000000?text=MAC',
-    },
-    {
-      'name': 'Fenty',
-      'imageUrl': 'https://placehold.co/100x100/F0F0F0/000000?text=F',
-    },
-    {
-      'name': 'Lancôme',
-      'imageUrl': 'https://placehold.co/100x100/F0F0F0/000000?text=LA',
-    },
-    {
-      'name': 'Dior',
-      'imageUrl': 'https://placehold.co/100x100/F0F0F0/000000?text=D',
-    },
-    {
-      'name': 'Clinique',
-      'imageUrl': 'https://placehold.co/100x100/F0F0F0/000000?text=C',
-    },
-    {
-      'name': 'Charlotte',
-      'imageUrl': 'https://placehold.co/100x100/F0F0F0/000000?text=CH',
-    },
-    {
-      'name': 'NARS',
-      'imageUrl': 'https://placehold.co/100x100/F0F0F0/000000?text=N',
-    },
-  ];
+  // Instance of ApiService
+  final ApiService _apiService = ApiService();
 
-  // Sample data for most popular brand.
-  final Map<String, String> _mostPopularBrand = {
-    'name': 'Fenty Beauty',
-    'imageUrl': 'https://placehold.co/100x100/F0F0F0/000000?text=FB',
-  };
+  // State variables for brands and product counts
+  List<Brand> _brands = [];
+  Map<int, int> _productsCountMap = {}; // Maps brandId to product count
+
+  // Combined loading state for initial data
+  bool _isLoadingInitialData = true;
+  String? _initialDataErrorMessage;
+
+  // Lottie animation URL to be used for all brand icons
+  // You can replace this with any Lottie animation URL you prefer from LottieFiles.com
+  static const String _lottieBrandIconUrl =
+      'https://lottie.host/802bce28-03ba-473b-8df5-d98600c6ce82/BaPYcYlxwF.json';
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchInitialData(); // Fetch all necessary data when the screen initializes
+  }
+
+  // Function to fetch all initial data (brands and products)
+  Future<void> _fetchInitialData() async {
+    setState(() {
+      _isLoadingInitialData = true;
+      _initialDataErrorMessage = null;
+    });
+
+    try {
+      await Future.wait([
+        _fetchBrands(), // Fetch brands
+        _fetchProductsAndCount(), // Fetch products and populate count map
+      ]);
+
+      if (mounted) {
+        setState(() {
+          _isLoadingInitialData = false;
+        });
+      }
+    } on ErrorResponse catch (e) {
+      if (mounted) {
+        setState(() {
+          _initialDataErrorMessage = e.message;
+          _isLoadingInitialData = false;
+        });
+        print('BrandScreen: Error fetching initial data: ${e.message}');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _initialDataErrorMessage =
+              'BrandScreen: Failed to load initial data: ${e.toString()}';
+          _isLoadingInitialData = false;
+        });
+        print('BrandScreen: Unexpected error fetching initial data: $e');
+      }
+    }
+  }
+
+  // Function to fetch brands from the API
+  Future<void> _fetchBrands() async {
+    try {
+      final BrandListResponse response = await _apiService.getBrands();
+      if (mounted) {
+        setState(() {
+          _brands = response.data ?? []; // Update the list with fetched data
+        });
+        print('Brands fetched successfully: ${_brands.length} items');
+      }
+    } on ErrorResponse catch (e) {
+      if (mounted) {
+        // Append error message to initial data error
+        _initialDataErrorMessage = _initialDataErrorMessage != null
+            ? '${_initialDataErrorMessage}\nBrands: ${e.message}'
+            : 'Brands: ${e.message}';
+        print('Error fetching brands: ${e.message}');
+      }
+    } catch (e) {
+      if (mounted) {
+        // Append error message to initial data error
+        _initialDataErrorMessage = _initialDataErrorMessage != null
+            ? '${_initialDataErrorMessage}\nBrands: ${e.toString()}'
+            : 'Brands: ${e.toString()}';
+        print('Unexpected error fetching brands: $e');
+      }
+    }
+  }
+
+  // Function to fetch all products and then count them per brand
+  Future<void> _fetchProductsAndCount() async {
+    try {
+      final ProductListResponse response = await _apiService.getProducts();
+      if (mounted) {
+        final Map<int, int> tempCountMap = {};
+        for (var product in response.data ?? []) {
+          if (product.brandId != null) {
+            tempCountMap.update(
+              product.brandId!,
+              (value) => value + 1,
+              ifAbsent: () => 1,
+            );
+          }
+        }
+        setState(() {
+          _productsCountMap = tempCountMap;
+        });
+        print('Product counts per brand calculated.');
+      }
+    } on ErrorResponse catch (e) {
+      if (mounted) {
+        // Append error message to initial data error
+        _initialDataErrorMessage = _initialDataErrorMessage != null
+            ? '${_initialDataErrorMessage}\nProducts: ${e.message}'
+            : 'Products: ${e.message}';
+        print('Error fetching products for count: ${e.message}');
+      }
+    } catch (e) {
+      if (mounted) {
+        // Append error message to initial data error
+        _initialDataErrorMessage = _initialDataErrorMessage != null
+            ? '${_initialDataErrorMessage}\nProducts: ${e.toString()}'
+            : 'Products: ${e.toString()}';
+        print('Unexpected error fetching products for count: $e');
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -79,26 +161,15 @@ class _BrandScreenState extends State<BrandScreen> {
             ),
             const SizedBox(height: 20),
 
-            // Featured Brand Section Header
-            _buildSectionHeader('Featured Brand', () {
-              print('See All Featured Brands tapped');
-            }),
+            // Section Header for Brands List
+            _buildSectionHeader(
+              'All Brands',
+              null,
+            ), // "See All" not needed as it's the main list
             const SizedBox(height: 15),
 
-            // Horizontal list of Featured Brands
-            _buildFeaturedBrandsList(),
-            const SizedBox(height: 30),
-
-            // Most Popular Section Header
-            _buildSectionHeader('Most Popular', () {
-              print(
-                'See All Most Popular tapped',
-              ); // No "See All" in image for this
-            }),
-            const SizedBox(height: 15),
-
-            // Most Popular Brand List Item
-            _buildMostPopularBrandItem(),
+            // List of Brands dynamically from API data
+            _buildBrandList(),
             const SizedBox(height: 20), // Padding at the bottom
           ],
         ),
@@ -111,6 +182,15 @@ class _BrandScreenState extends State<BrandScreen> {
     return AppBar(
       backgroundColor: Colors.white,
       elevation: 0,
+      leading: IconButton(
+        icon: const Icon(
+          Icons.arrow_back_ios,
+          color: Colors.black,
+        ), // Back button
+        onPressed: () {
+          Navigator.pop(context); // Pop the current screen off the stack
+        },
+      ),
       title: const Text(
         'Brands',
         style: TextStyle(
@@ -174,7 +254,7 @@ class _BrandScreenState extends State<BrandScreen> {
     );
   }
 
-  // Builds a standard section header with a "See All" link
+  // Builds a standard section header with an optional "See All" link
   Widget _buildSectionHeader(String title, VoidCallback? onSeeAllTap) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -205,93 +285,123 @@ class _BrandScreenState extends State<BrandScreen> {
     );
   }
 
-  // Builds the horizontal list of featured brands
-  Widget _buildFeaturedBrandsList() {
-    return SizedBox(
-      height: 100, // Height for brand circle and name
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        itemCount: _featuredBrands.length,
-        padding: const EdgeInsets.symmetric(
-          horizontal: 16.0,
-        ), // Padding for the list itself
+  // Builds the list of brands (now using fetched data and Lottie animation)
+  Widget _buildBrandList() {
+    if (_isLoadingInitialData) {
+      // Use combined loading state
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(20.0),
+          child: CircularProgressIndicator(color: primaryPink),
+        ),
+      );
+    } else if (_initialDataErrorMessage != null) {
+      // Use combined error message
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Text(
+            _initialDataErrorMessage!,
+            style: const TextStyle(color: Colors.red, fontSize: 16),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    } else if (_brands.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(20.0),
+          child: Text(
+            'No brands found.',
+            style: TextStyle(color: Colors.grey, fontSize: 16),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    } else {
+      return ListView.builder(
+        shrinkWrap: true, // Take only as much space as needed
+        physics:
+            const NeverScrollableScrollPhysics(), // Disable scrolling within this list
+        itemCount: _brands.length,
         itemBuilder: (context, index) {
-          final brand = _featuredBrands[index];
-          return GestureDetector(
-            onTap: () {
-              print('Tapped on featured brand: ${brand['name']}');
-              // Navigate to brand details or products
-            },
-            child: Container(
-              width: 80, // Fixed width for each brand item
-              margin: const EdgeInsets.only(
-                right: 15,
-              ), // Spacing between brands
-              child: Column(
-                children: <Widget>[
-                  CircleAvatar(
-                    radius: 30,
-                    backgroundColor:
-                        Colors.grey[100], // Background for brand logo
-                    backgroundImage: NetworkImage(
-                      brand['imageUrl']!,
-                    ), // Brand logo
+          final brand = _brands[index];
+          // Get product count for the current brand, default to 0 if not found
+          final int productCount = _productsCountMap[brand.id] ?? 0;
+          return Column(
+            children: [
+              ListTile(
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16.0,
+                  vertical: 8.0,
+                ),
+                leading: Container(
+                  // Replaced CircleAvatar with Container for Lottie
+                  width: 50, // Match the radius * 2
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: primaryPink.withOpacity(
+                      0.1,
+                    ), // Light pink background
+                    shape: BoxShape.circle,
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    brand['name']!,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 13, color: Colors.black),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  child: ClipOval(
+                    // Clip the Lottie animation to a circle
+                    child: Lottie.network(
+                      _lottieBrandIconUrl,
+                      fit: BoxFit.cover,
+                      width: 50,
+                      height: 50,
+                      repeat: true, // Loop the animation
+                      errorBuilder: (context, error, stackTrace) => const Icon(
+                        Icons.diamond_outlined,
+                        color: primaryPink,
+                      ), // Fallback to icon on error
+                    ),
                   ),
-                ],
+                ),
+                title: Text(
+                  brand.name ?? 'Unknown Brand',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black,
+                  ),
+                ),
+                subtitle: Text(
+                  '$productCount products', // Display product count
+                  style: const TextStyle(fontSize: 13, color: Colors.grey),
+                ),
+                trailing: const Icon(
+                  Icons.arrow_forward_ios,
+                  color: Colors.grey,
+                  size: 20,
+                ),
+                onTap: () {
+                  print('Tapped on ${brand.name}');
+                  // Navigate to the new BrandDetailScreen
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => BrandDetailScreen(
+                        brandId: brand.id!, // Pass the brand ID
+                        brandName:
+                            brand.name ??
+                            'Unknown Brand', // Pass the brand name
+                      ),
+                    ),
+                  );
+                },
               ),
-            ),
+              const Divider(
+                height: 1,
+                indent: 70,
+                endIndent: 16,
+              ), // Divider below the item
+            ],
           );
         },
-      ),
-    );
-  }
-
-  // Builds the Most Popular Brand list item
-  Widget _buildMostPopularBrandItem() {
-    return Column(
-      children: [
-        ListTile(
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16.0,
-            vertical: 8.0,
-          ),
-          leading: CircleAvatar(
-            radius: 25,
-            backgroundColor: Colors.grey[100],
-            backgroundImage: NetworkImage(_mostPopularBrand['imageUrl']!),
-          ),
-          title: Text(
-            _mostPopularBrand['name']!,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: Colors.black,
-            ),
-          ),
-          trailing: Icon(
-            Icons.arrow_forward_ios,
-            color: Colors.grey[600],
-            size: 20,
-          ),
-          onTap: () {
-            print('Tapped on Most Popular brand: ${_mostPopularBrand['name']}');
-            // Navigate to products or details for Fenty Beauty
-          },
-        ),
-        const Divider(
-          height: 1,
-          indent: 70,
-          endIndent: 16,
-        ), // Divider below the item
-      ],
-    );
+      );
+    }
   }
 }
