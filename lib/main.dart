@@ -1,8 +1,8 @@
 import 'package:elure_app/models/api_models.dart';
+import 'package:elure_app/screens/home_screen.dart'; // Your HomeScreen (assuming its path)
+import 'package:elure_app/screens/welcome_screen.dart'; // Your WelcomeScreen
 import 'package:elure_app/services/local_storage_service.dart';
 import 'package:flutter/material.dart';
-import 'package:elure_app/screens/welcome_screen.dart'; // Your WelcomeScreen
-import 'package:elure_app/screens/home_screen.dart'; // Your HomeScreen (assuming its path)
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized(); // Ensure Flutter binding is initialized for SharedPreferences

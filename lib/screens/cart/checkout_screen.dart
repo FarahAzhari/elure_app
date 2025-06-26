@@ -1,14 +1,74 @@
-import 'package:elure_app/screens/home_screen.dart';
+import 'package:elure_app/models/api_models.dart'; // Import API models for CheckoutData and CheckoutItem
+import 'package:elure_app/screens/home_screen.dart'; // Import HomeScreen to navigate back
 import 'package:flutter/material.dart';
-// Import HomeScreen to navigate back
+import 'package:intl/intl.dart'; // For date formatting
 
-class CashierDetailScreen extends StatelessWidget {
-  const CashierDetailScreen({super.key});
+class CheckoutScreen extends StatelessWidget {
+  final CheckoutData?
+  checkoutData; // Data from the successful checkout API call
+
+  const CheckoutScreen({super.key, required this.checkoutData});
 
   static const Color primaryPink = Color(0xFFE91E63);
 
   @override
   Widget build(BuildContext context) {
+    // Check if checkoutData is null (e.g., if navigated directly without data)
+    if (checkoutData == null) {
+      return Scaffold(
+        appBar: _buildAppBar(context),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.info_outline, color: Colors.blueGrey, size: 60),
+                const SizedBox(height: 20),
+                const Text(
+                  'No checkout details available. Please complete a checkout process to see details.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.blueGrey, fontSize: 16),
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(
+                        builder: (context) => const HomeScreen(),
+                      ),
+                      (Route<dynamic> route) => false,
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryPink,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(25),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 30,
+                      vertical: 12,
+                    ),
+                  ),
+                  child: const Text(
+                    'Back to Home',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Format date if available
+    final String formattedDate = checkoutData?.createdAt != null
+        ? DateFormat(
+            'MMMM dd,yyyy',
+          ).format(DateTime.parse(checkoutData!.createdAt!))
+        : 'N/A';
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: _buildAppBar(context),
@@ -56,10 +116,19 @@ class CashierDetailScreen extends StatelessWidget {
             const SizedBox(height: 10),
             _buildDetailCard(
               children: [
-                _buildDetailRow('Amount', '\$960.00'),
-                _buildDetailRow('Order number', '120126'),
-                _buildDetailRow('Date', 'March 17, 2025'),
-                _buildDetailRow('Payment method', 'Cash payment on delivery'),
+                _buildDetailRow(
+                  'Amount',
+                  '\$${checkoutData!.total?.toStringAsFixed(2) ?? '0.00'}',
+                ),
+                _buildDetailRow(
+                  'Order number',
+                  checkoutData!.id?.toString() ?? 'N/A',
+                ),
+                _buildDetailRow('Date', formattedDate),
+                _buildDetailRow(
+                  'Payment method',
+                  'Cash payment on delivery',
+                ), // Static as per original design
               ],
             ),
             const SizedBox(height: 30),
@@ -68,25 +137,33 @@ class CashierDetailScreen extends StatelessWidget {
             _buildSectionTitle('Order Details'),
             const SizedBox(height: 10),
             _buildDetailCard(
-              children: [
-                _buildDetailRow(
-                  'Eucerin Hyaluron-Filler + Elasticity Night\n(50ml) + free Photoaging SPF 50 x 1',
-                  '\$600.00',
-                  isMultiLine: true,
-                ),
-                const SizedBox(
-                  height: 10,
-                ), // Add some spacing between items if multi-line
-                _buildDetailRow(
-                  'Eucerin Pigment Control SPF 50\n(50ml) + 2 mini duo x 4',
-                  '\$360.00',
-                  isMultiLine: true,
-                ),
-              ],
+              children:
+                  checkoutData!.items?.map((item) {
+                    final productName = item.product?.name ?? 'Unknown Product';
+                    final quantity = item.quantity ?? 0;
+                    final price = item.product?.price ?? 0;
+                    final totalItemPrice = (quantity * price).toStringAsFixed(
+                      2,
+                    );
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8.0),
+                      child: _buildDetailRow(
+                        '$productName x $quantity',
+                        '\$$totalItemPrice',
+                        isMultiLine: true,
+                      ),
+                    );
+                  }).toList() ??
+                  [
+                    const Text(
+                      'No order items found.',
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  ],
             ),
             const SizedBox(height: 30),
 
-            // Addresses Section
+            // Addresses Section (static placeholder as API does not provide address details in CheckoutData)
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
@@ -153,7 +230,7 @@ class CashierDetailScreen extends StatelessWidget {
     );
   }
 
-  // Custom AppBar for the Cashier Details Screen
+  // Custom AppBar for the Checkout Screen
   PreferredSizeWidget _buildAppBar(BuildContext context) {
     return AppBar(
       backgroundColor: Colors.white,
@@ -165,7 +242,7 @@ class CashierDetailScreen extends StatelessWidget {
         },
       ),
       title: const Text(
-        'Cashier details',
+        'Checkout details', // Changed title to reflect "Checkout"
         style: TextStyle(
           color: Colors.black,
           fontSize: 20,
@@ -181,7 +258,7 @@ class CashierDetailScreen extends StatelessWidget {
             size: 28,
           ),
           onPressed: () {
-            print('Notifications Tapped from Cashier Details Screen');
+            print('Notifications Tapped from Checkout Screen');
           },
         ),
         const SizedBox(width: 10),

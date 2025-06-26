@@ -232,19 +232,21 @@ class CartProduct {
   final int? id;
   final String? name;
   final int? price;
+  final int? stock; // Added stock field
 
-  CartProduct({this.id, this.name, this.price});
+  CartProduct({this.id, this.name, this.price, this.stock});
 
   factory CartProduct.fromJson(Map<String, dynamic> json) {
     return CartProduct(
       id: _parseIntSafely(json['id']), // Use safe parsing
       name: json['name'],
       price: _parseIntSafely(json['price']), // Use safe parsing
+      stock: _parseIntSafely(json['stock']), // Use safe parsing for stock
     );
   }
 
   Map<String, dynamic> toJson() {
-    return {'id': id, 'name': name, 'price': price};
+    return {'id': id, 'name': name, 'price': price, 'stock': stock};
   }
 }
 

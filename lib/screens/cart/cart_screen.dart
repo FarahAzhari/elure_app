@@ -1,5 +1,5 @@
 import 'package:elure_app/models/api_models.dart'; // Ensure this contains CartListResponse, CartItem, Product models
-import 'package:elure_app/screens/cart/cashier_detail_screen.dart'; // Import the new cashier detail screen
+import 'package:elure_app/screens/cart/checkout_screen.dart'; // Import the new checkout screen (renamed from cashier_detail_screen)
 import 'package:elure_app/services/api_service.dart';
 import 'package:elure_app/services/local_storage_service.dart';
 import 'package:flutter/material.dart';
@@ -66,8 +66,47 @@ class _CartScreenState extends State<CartScreen> {
         return Future.error(Exception('Please log in to view your cart.'));
       }
 
-      // If user is logged in, fetch and return cart items
-      return await _apiService.getCartItems();
+      // Fetch cart items
+      final CartListResponse cartResponse = await _apiService.getCartItems();
+
+      // Fetch all products to get their stock information
+      final ProductListResponse productListResponse = await _apiService
+          .getProducts();
+      final Map<int, Product> productsMap = {
+        for (var product in productListResponse.data ?? [])
+          product.id!: product,
+      };
+
+      // Enrich cart items with stock information
+      final List<CartItem> enrichedCartItems = [];
+      for (var item in cartResponse.data ?? []) {
+        if (item.product?.id != null) {
+          final Product? fullProduct = productsMap[item.product!.id!];
+          if (fullProduct != null) {
+            // Create a new CartProduct with stock information
+            final CartProduct enrichedCartProduct = CartProduct(
+              id: item.product!.id,
+              name: item.product!.name,
+              price: item.product!.price,
+              stock: fullProduct.stock, // Use stock from full product details
+            );
+            // Add the enriched CartItem to the list
+            enrichedCartItems.add(
+              CartItem(
+                id: item.id,
+                product: enrichedCartProduct,
+                quantity: item.quantity,
+                subtotal: item.subtotal,
+              ),
+            );
+          }
+        }
+      }
+
+      return CartListResponse(
+        message: cartResponse.message,
+        data: enrichedCartItems,
+      );
     } catch (e) {
       print('Error loading cart data: $e');
       if (!mounted) {
@@ -102,14 +141,13 @@ class _CartScreenState extends State<CartScreen> {
     try {
       final checkoutResponse = await _apiService.checkout();
       if (!mounted) return; // Check if the widget is still in the tree
-      // Removed unnecessary null check and '!' for checkoutResponse.message
+
+      // Display message from API response
       if (checkoutResponse.message.isNotEmpty) {
-        // Check if message is not empty string
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text(checkoutResponse.message)));
       } else if (checkoutResponse.data?.total != null) {
-        // Used null-aware access for data?.total
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -122,23 +160,23 @@ class _CartScreenState extends State<CartScreen> {
           context,
         ).showSnackBar(const SnackBar(content: Text('Checkout successful!')));
       }
+
       _refreshCart(); // Refresh cart to show it's empty after checkout
 
-      // Navigate to CashierDetailScreen after successful checkout
+      // Navigate to CheckoutScreen after successful checkout, passing the CheckoutData
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) =>
-              const CashierDetailScreen(), // Pass any necessary data here
+          builder: (context) => CheckoutScreen(
+            checkoutData: checkoutResponse.data,
+          ), // Pass checkout data here
         ),
       );
     } on ErrorResponse catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Checkout failed: ${e.message}'),
-        ), // Removed `?? 'Unknown API error'`
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Checkout failed: ${e.message}')));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -259,7 +297,7 @@ class _CartScreenState extends State<CartScreen> {
                 } else if (snapshot.hasData) {
                   // `snapshot.data` is non-null here because `snapshot.hasData` is true.
                   // `snapshot.data.data` can still be null, so null-aware access is needed.
-                  final List<CartItem>? fetchedCartItems = snapshot.data!.data;
+                  List<CartItem>? fetchedCartItems = snapshot.data!.data;
 
                   if (fetchedCartItems == null || fetchedCartItems.isEmpty) {
                     return const Center(
@@ -281,10 +319,12 @@ class _CartScreenState extends State<CartScreen> {
                     );
                   }
 
-                  // --- Consolidate duplicate products ---
+                  // --- Filter out items with 0 stock and consolidate duplicate products ---
                   final Map<int, CartItem> consolidatedItems = {};
                   for (var item in fetchedCartItems) {
-                    if (item.product?.id != null) {
+                    // Only process items that have a product and stock > 0
+                    if (item.product?.id != null &&
+                        (item.product?.stock ?? 0) > 0) {
                       final int productId = item.product!.id!;
                       if (consolidatedItems.containsKey(productId)) {
                         // If product already exists, update its quantity
@@ -303,6 +343,12 @@ class _CartScreenState extends State<CartScreen> {
                         // Add new item if not already in the map
                         consolidatedItems[productId] = item;
                       }
+                    } else if (item.product?.id != null &&
+                        (item.product?.stock ?? 0) <= 0) {
+                      // If stock is 0 or less, attempt to delete the item from the backend
+                      // This is an optional behavior. You might instead just display it as "out of stock"
+                      // without automatically deleting. For now, we'll keep the auto-delete for zero stock.
+                      _deleteCartItem(item.id!);
                     }
                   }
                   final List<CartItem> displayCartItems = consolidatedItems
@@ -314,7 +360,28 @@ class _CartScreenState extends State<CartScreen> {
                       b.product?.name ?? '',
                     ),
                   );
-                  // --- End consolidation logic ---
+                  // --- End filtering and consolidation logic ---
+
+                  if (displayCartItems.isEmpty) {
+                    return const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.shopping_cart_outlined,
+                            size: 80,
+                            color: Colors.grey,
+                          ),
+                          SizedBox(height: 20),
+                          Text(
+                            'Your cart is empty (all available items are out of stock)!',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 16, color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
 
                   return ListView.builder(
                     padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -345,20 +412,22 @@ class _CartScreenState extends State<CartScreen> {
                 // to match the API's actual sum if consolidation is only for display.
                 // If the API consolidates, then `snapshot.data!.data!` would already be consolidated.
                 // Assuming API returns individual items, so iterate raw fetched items for true total.
-                for (var item in snapshot.data!.data!) {
+
+                // Filter out items with 0 stock before calculating total and item count
+                final List<CartItem> availableItems = snapshot.data!.data!
+                    .where((item) => (item.product?.stock ?? 0) > 0)
+                    .toList();
+
+                for (var item in availableItems) {
                   if (item.product?.price != null && item.quantity != null) {
                     currentTotal += (item.product!.price! * item.quantity!);
                   }
                 }
 
-                // For itemCount, if you want count of unique products after consolidation,
-                // you would apply the consolidation logic here as well before counting.
-                // For now, let's keep it as the total count of items from the API,
-                // or if you want to reflect unique items in the display,
-                // you'd run the consolidation here to get `consolidatedItems.length`.
+                // For itemCount, you would apply the consolidation logic here as well before counting.
                 final Map<int, CartItem> tempConsolidatedItems = {};
-                if (snapshot.data!.data != null) {
-                  for (var item in snapshot.data!.data!) {
+                if (availableItems.isNotEmpty) {
+                  for (var item in availableItems) {
                     if (item.product?.id != null) {
                       final int productId = item.product!.id!;
                       if (tempConsolidatedItems.containsKey(productId)) {
@@ -382,10 +451,10 @@ class _CartScreenState extends State<CartScreen> {
                 }
                 itemCount = tempConsolidatedItems
                     .values
-                    .length; // Count of unique items
+                    .length; // Count of unique items with stock > 0
                 isCartEmpty = tempConsolidatedItems
                     .values
-                    .isEmpty; // Check if unique items list is empty
+                    .isEmpty; // Check if unique items list is empty after filtering
               }
 
               return _buildBottomSummary(currentTotal, isCartEmpty, itemCount);
@@ -470,7 +539,8 @@ class _CartScreenState extends State<CartScreen> {
     // Ensure product and its properties are not null before accessing
     final productName = item.product?.name ?? 'Unknown Product';
     final productPrice = item.product?.price ?? 0;
-    // Removed unused local variable `quantity` from here as it's not needed.
+    final int currentQuantity = item.quantity ?? 0; // Get current quantity
+    final int availableStock = item.product?.stock ?? 0; // Get available stock
 
     // --- Using Dummy Data for missing API fields as requested ---
     // These will be used if the corresponding fields are NOT available in your CartProduct model
@@ -567,7 +637,11 @@ class _CartScreenState extends State<CartScreen> {
                       ],
                     ),
                     // Quantity Selector (local state only, no API update for quantity provided)
-                    _buildQuantitySelector(item),
+                    _buildQuantitySelector(
+                      item,
+                      currentQuantity,
+                      availableStock,
+                    ),
                   ],
                 ),
               ],
@@ -598,7 +672,11 @@ class _CartScreenState extends State<CartScreen> {
   }
 
   // Builds the quantity selector for a cart item
-  Widget _buildQuantitySelector(CartItem item) {
+  Widget _buildQuantitySelector(
+    CartItem item,
+    int currentQuantity,
+    int availableStock,
+  ) {
     // NOTE: This quantity selector currently only updates local state.
     // Your provided API does not have an endpoint to update quantity for an existing cart item.
     // If you need this functionality, an.endpoint like PUT /api/cart/{cart_item_id}
@@ -626,8 +704,7 @@ class _CartScreenState extends State<CartScreen> {
             },
           ),
           Text(
-            item.quantity?.toString() ??
-                '0', // Display quantity from fetched data
+            currentQuantity.toString(), // Display current quantity
             style: const TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
@@ -640,12 +717,27 @@ class _CartScreenState extends State<CartScreen> {
             padding: const EdgeInsets.all(5),
             icon: const Icon(Icons.add, color: Colors.black),
             onPressed: () {
-              // For now, this button has no effect on the backend.
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Quantity update not yet supported by API.'),
-                ),
-              );
+              // Check if current quantity is less than available stock before allowing increment
+              if (currentQuantity < availableStock) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Quantity update not yet supported by API.'),
+                  ),
+                );
+                // If you were to update the quantity locally and then call an API:
+                // setState(() {
+                //   item.quantity = currentQuantity + 1; // This would require `item.quantity` to be non-final
+                // });
+                // _apiService.updateCartItemQuantity(item.id!, currentQuantity + 1); // Hypothetical API call
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'Maximum stock of $availableStock reached for this product.',
+                    ),
+                  ),
+                );
+              }
             },
           ),
         ],
