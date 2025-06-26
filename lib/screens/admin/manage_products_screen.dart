@@ -1488,21 +1488,21 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
           }
 
           return Card(
-            margin: const EdgeInsets.symmetric(vertical: 8.0),
-            elevation: 2,
+            margin: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 4.0),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(15),
+              borderRadius: BorderRadius.circular(12),
             ),
+            elevation: 1,
             child: Padding(
-              padding: const EdgeInsets.all(12.0),
+              padding: const EdgeInsets.all(10.0),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(8),
                     child: productImageWidget,
                   ),
-                  const SizedBox(width: 15),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1510,109 +1510,95 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
                         Text(
                           product.name ?? 'N/A',
                           style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.black87,
                           ),
                         ),
-                        const SizedBox(height: 5),
+                        const SizedBox(height: 4),
                         Text(
-                          'Category: $categoryName',
+                          '$categoryName · $brandName',
                           style: TextStyle(
-                            fontSize: 13,
+                            fontSize: 12,
                             color: Colors.grey[600],
                           ),
                         ),
-                        Text(
-                          'Brand: $brandName',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                        const SizedBox(height: 5),
+                        const SizedBox(height: 6),
                         Text(
                           product.description ?? 'No description',
                           style: TextStyle(
-                            fontSize: 14,
+                            fontSize: 13,
                             color: Colors.grey[700],
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 5),
+                        const SizedBox(height: 6),
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              'Price: $displayOriginalPrice',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: primaryPink,
-                              ),
-                            ),
-                            Text(
-                              'Stock: ${product.stock ?? '0'}',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.black87,
+                              displayOriginalPrice,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[600],
+                                decoration:
+                                    product.discount != null &&
+                                        product.discount! > 0
+                                    ? TextDecoration.lineThrough
+                                    : TextDecoration.none,
                               ),
                             ),
                             if (product.discount != null &&
-                                product.discount! > 0)
+                                product.discount! > 0) ...[
+                              const SizedBox(width: 8),
                               Text(
-                                // Display discount directly as it's returned as an integer percentage
-                                'Disc: ${product.discount!.toStringAsFixed(0)}%',
+                                displayCurrentPrice,
                                 style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.green, // Highlight discount
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                  color: primaryPink,
                                 ),
                               ),
-                          ],
-                        ),
-                        // const SizedBox(height: 10),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Price after discount: $displayCurrentPrice',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: primaryPink,
+                              const SizedBox(width: 8),
+                              Text(
+                                '${product.discount!.toStringAsFixed(0)}% off',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.green,
+                                ),
                               ),
-                            ),
+                            ] else ...[
+                              const SizedBox(width: 8),
+                              Text(
+                                displayCurrentPrice,
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                  color: primaryPink,
+                                ),
+                              ),
+                            ],
                           ],
                         ),
-                        SizedBox(height: 10),
-                        // Action buttons for Edit and Delete
+                        const SizedBox(height: 4),
+                        Text(
+                          'Stock: ${product.stock ?? '0'}',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Colors.black54,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
-                            ElevatedButton.icon(
-                              onPressed: () {
-                                print('Edit ${product.name} tapped');
-                                _showEditProductDialog(
-                                  product,
-                                ); // Call the edit dialog
-                              },
-                              icon: const Icon(Icons.edit, size: 18),
+                            TextButton.icon(
+                              onPressed: () => _showEditProductDialog(product),
+                              icon: const Icon(Icons.edit, size: 16),
                               label: const Text('Edit'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.blueAccent,
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                              ),
                             ),
-                            const SizedBox(width: 10),
-                            ElevatedButton.icon(
+                            TextButton.icon(
                               onPressed: () {
-                                print('Delete ${product.name} tapped');
                                 if (product.id != null) {
                                   _confirmAndDeleteProduct(
                                     product.id!,
@@ -1620,14 +1606,10 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
                                   );
                                 }
                               },
-                              icon: const Icon(Icons.delete, size: 18),
+                              icon: const Icon(Icons.delete_outline, size: 16),
                               label: const Text('Delete'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.redAccent,
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
+                              style: TextButton.styleFrom(
+                                foregroundColor: Colors.redAccent,
                               ),
                             ),
                           ],
