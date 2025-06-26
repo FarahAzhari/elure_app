@@ -1,6 +1,7 @@
-import 'package:elure_app/models/api_models.dart';
-import 'package:elure_app/screens/product/product_detail_screen.dart';
-import 'package:elure_app/services/api_service.dart';
+import 'package:elure_app/models/api_models.dart'; // Import API models
+import 'package:elure_app/screens/product/product_detail_screen.dart'; // Import ProductDetailScreen
+import 'package:elure_app/services/api_service.dart'; // Import ApiService
+import 'package:elure_app/services/local_storage_service.dart'; // Import LocalStorageService
 import 'package:flutter/material.dart';
 
 // HomeScreen now represents the content of the "Home" tab.
@@ -18,90 +19,73 @@ class _HomeScreenState extends State<HomeScreen> {
   static const String _baseUrl =
       'https://apptoko.mobileprojp.com/public/'; // Base URL for images
 
-  // Instance of ApiService
+  // Instances of services
   final ApiService _apiService = ApiService();
+  final LocalStorageService _localStorageService = LocalStorageService();
 
-  // State variables for products
-  List<Product> _bestSellerProducts = [];
+  // State variables for data
+  User? _loggedInUser;
+  List<Product> _products =
+      []; // Renamed from _bestSellerProducts for broader use
+  List<Category> _categories = [];
+  List<Brand> _brands = [];
+
   // Maps for quick lookup of brand names by ID (needed for ProductDetailScreen)
   Map<int, Brand> _brandsMap = {};
-  bool _isLoadingProducts = true;
-  String? _productsErrorMessage;
-  bool _isLoadingBrands = true; // Track loading for brands
-  String? _brandsErrorMessage;
+
+  // Loading and error states
+  bool _isLoading = true; // Overall loading state
+  String? _errorMessage; // Overall error message
 
   @override
   void initState() {
     super.initState();
-    _fetchBrands().then((_) {
-      // Fetch brands first
-      _fetchBestSellerProducts(); // Then fetch products
-    });
+    _loadAllData(); // Load all necessary data when the screen initializes
   }
 
-  // Function to fetch brands from the API (copied from ManageProductsScreen)
-  Future<void> _fetchBrands() async {
+  // Function to load all data (user, products, categories, brands)
+  Future<void> _loadAllData() async {
     setState(() {
-      _isLoadingBrands = true;
-      _brandsErrorMessage = null;
+      _isLoading = true;
+      _errorMessage = null; // Clear previous error messages
     });
 
     try {
+      // 1. Load user data
+      _loggedInUser = await _localStorageService.getUserData();
+
+      // 2. Fetch brands first (as products might depend on brand names)
       final brandResponse = await _apiService.getBrands();
-      if (mounted) {
-        setState(() {
-          _brandsMap = {for (var b in brandResponse.data ?? []) b.id!: b};
-          _isLoadingBrands = false;
-        });
-      }
-    } on ErrorResponse catch (e) {
-      if (mounted) {
-        setState(() {
-          _brandsErrorMessage = e.message;
-          _isLoadingBrands = false;
-        });
-        print('Home: Error fetching brands: ${e.message}');
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _brandsErrorMessage = 'Home: Failed to load brands: ${e.toString()}';
-          _isLoadingBrands = false;
-        });
-        print('Home: Unexpected error fetching brands: $e');
-      }
-    }
-  }
+      _brands = brandResponse.data ?? [];
+      _brandsMap = {for (var b in _brands) b.id!: b};
 
-  // Function to fetch best seller products from the API
-  Future<void> _fetchBestSellerProducts() async {
-    setState(() {
-      _isLoadingProducts = true;
-      _productsErrorMessage = null; // Clear previous error messages
-    });
+      // 3. Fetch categories
+      final categoryResponse = await _apiService.getCategories();
+      _categories = categoryResponse.data ?? [];
 
-    try {
-      final ProductListResponse response = await _apiService.getProducts();
-      setState(() {
-        _bestSellerProducts =
-            response.data ?? []; // Update the list with fetched data
-        _isLoadingProducts = false;
-      });
-      print(
-        'Products fetched successfully: ${_bestSellerProducts.length} items',
-      );
+      // 4. Fetch products (assuming these are your "Best Sellers")
+      final productResponse = await _apiService.getProducts();
+      _products = productResponse.data ?? [];
+
+      print('Home: All data loaded successfully!');
     } on ErrorResponse catch (e) {
+      // Handle API specific errors
       setState(() {
-        _productsErrorMessage = e.message;
-        _isLoadingProducts = false;
+        _errorMessage = 'API Error: ${e.message}';
       });
-      print('Error fetching products: ${e.message}');
+      print('Home: API Error during data load: ${e.message}');
     } catch (e) {
+      // Handle other unexpected errors (e.g., network issues)
       setState(() {
-        _productsErrorMessage = 'Failed to load products: ${e.toString()}';
-        _isLoadingProducts = false;
+        _errorMessage = 'An unexpected error occurred: ${e.toString()}';
       });
-      print('Unexpected error fetching products: $e');
+      print('Home: Unexpected error during data load: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -110,60 +94,99 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: Colors.white, // Overall background color of the screen
       appBar: _buildAppBar(), // Custom AppBar widget
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 16.0,
-          ), // Horizontal padding for the main content
-          child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.start, // Align children to the start (left)
-            children: <Widget>[
-              const SizedBox(height: 20), // Spacer below app bar
-              // Search Bar
-              _buildSearchBar(),
-              const SizedBox(height: 20),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: primaryPink))
+          : _errorMessage != null
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.error_outline, color: Colors.red, size: 60),
+                    const SizedBox(height: 20),
+                    Text(
+                      _errorMessage!,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.red, fontSize: 16),
+                    ),
+                    const SizedBox(height: 20),
+                    ElevatedButton(
+                      onPressed: _loadAllData,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryPink,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(25),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 10,
+                        ),
+                      ),
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : RefreshIndicator(
+              onRefresh:
+                  _loadAllData, // Allows pulling down to refresh all data
+              color: primaryPink,
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                  ), // Horizontal padding for the main content
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment
+                        .start, // Align children to the start (left)
+                    children: <Widget>[
+                      const SizedBox(height: 20), // Spacer below app bar
+                      // Search Bar
+                      _buildSearchBar(),
+                      const SizedBox(height: 20),
 
-              // Horizontal list of filter tags (All Brands, Glowora, etc.)
-              _buildFilterTags(),
-              const SizedBox(height: 20),
+                      // Horizontal list of filter tags (All Brands, Glowora, etc.)
+                      _buildFilterTags(),
+                      const SizedBox(height: 20),
 
-              // Promotional Banner
-              _buildPromotionBanner(),
-              const SizedBox(height: 30),
+                      // Promotional Banner
+                      _buildPromotionBanner(),
+                      const SizedBox(height: 30),
 
-              // Categories Section Header
-              _buildSectionHeader('Categories', () {
-                print('See All Categories tapped from Home');
-                // You can potentially use DefaultTabController.of(context).animateTo(index)
-                // if you want to switch tabs from within a content page.
-                // For now, this just prints to console.
-              }),
-              const SizedBox(height: 15),
+                      // Categories Section Header
+                      _buildSectionHeader('Categories', () {
+                        print('See All Categories tapped from Home');
+                        // You can navigate to a dedicated Category Screen here if needed
+                        // Example: Navigator.push(context, MaterialPageRoute(builder: (context) => CategoryScreen()));
+                      }),
+                      const SizedBox(height: 15),
 
-              // Horizontal list of Categories
-              _buildCategoriesList(),
-              const SizedBox(height: 30),
+                      // Horizontal list of Categories
+                      _buildCategoriesList(),
+                      const SizedBox(height: 30),
 
-              // Best Sellers Section Header
-              _buildSectionHeader('Best Sellers', () {
-                print('See All Best Sellers tapped from Home');
-                // Similarly, this just prints for now.
-              }),
-              const SizedBox(height: 15),
+                      // Best Sellers Section Header
+                      _buildSectionHeader('Best Sellers', () {
+                        print('See All Best Sellers tapped from Home');
+                        // You can navigate to a screen showing all products here
+                      }),
+                      const SizedBox(height: 15),
 
-              // Grid of Best Seller Products
-              _buildBestSellersGrid(),
-              const SizedBox(height: 20), // Padding at the bottom
-            ],
-          ),
-        ),
-      ),
-      // bottomNavigationBar: _buildBottomNavigationBar(), // REMOVED: Now managed by MainNavigationScreen
+                      // Grid of Best Seller Products
+                      _buildProductGrid(), // Renamed from _buildBestSellersGrid
+                      const SizedBox(height: 20), // Padding at the bottom
+                    ],
+                  ),
+                ),
+              ),
+            ),
     );
   }
 
-  // --- Widget Builders for Reusable UI Components (unchanged from your original) ---
+  // --- Widget Builders for Reusable UI Components ---
 
   // Builds the custom AppBar
   PreferredSizeWidget _buildAppBar() {
@@ -184,15 +207,14 @@ class _HomeScreenState extends State<HomeScreen> {
               radius: 25,
               backgroundImage: NetworkImage(
                 'https://placehold.co/100x100/FF00FF/FFFFFF?text=User',
-              ), // Placeholder image
-              // You would typically use an Image.asset or NetworkImage with an actual user image URL
+              ), // Placeholder image (assuming User model doesn't have image URL)
             ),
             const SizedBox(width: 10),
             // Welcome message and user name
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: const <Widget>[
-                Text(
+              children: <Widget>[
+                const Text(
                   'Good Morning 👋',
                   style: TextStyle(
                     color: Colors.black,
@@ -201,8 +223,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 Text(
-                  'Esther Howard',
-                  style: TextStyle(color: Colors.grey, fontSize: 14),
+                  _loggedInUser?.name ??
+                      'Guest User', // Display actual user name or 'Guest User'
+                  style: const TextStyle(color: Colors.grey, fontSize: 14),
                 ),
               ],
             ),
@@ -219,9 +242,10 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           onPressed: () {
             print('Shopping Cart Tapped');
-            // If you want to navigate to the cart tab, you'd need to access the MainNavigationScreen's state.
-            // This usually involves a callback or a global state management solution.
-            // For now, it just prints.
+            // Navigate to CartScreen (assuming it's a separate route)
+            // If Cart is part of a BottomNavigationBar in a parent, you'd
+            // trigger a tab change instead.
+            // Example: Navigator.push(context, MaterialPageRoute(builder: (context) => const CartScreen()));
           },
         ),
         // Notification Icon
@@ -233,6 +257,8 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           onPressed: () {
             print('Notifications Tapped');
+            // Navigate to Notifications Screen
+            // Example: Navigator.push(context, MaterialPageRoute(builder: (context) => const NotificationsScreen()));
           },
         ),
         const SizedBox(width: 10), // Spacing at the end
@@ -278,40 +304,47 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Builds the horizontal list of filter tags
+  // Builds the horizontal list of filter tags (now dynamic for brands)
   Widget _buildFilterTags() {
-    final List<String> tags = [
-      'All Brands',
-      'Glowora',
-      'Bloomelle',
-      'Skinova',
-      'AquaSense',
-    ];
+    final List<String> tags = ['All Brands'];
+    tags.addAll(_brands.map((brand) => brand.name ?? 'Unknown Brand').toList());
+
+    // You might want to implement selection logic here to highlight a selected brand
+    // For now, "All Brands" is hardcoded as selected for initial display
+    final int selectedIndex = 0; // Default to "All Brands" selected
+
     return SizedBox(
       height: 40, // Fixed height for the horizontal list
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         itemCount: tags.length,
         itemBuilder: (context, index) {
-          final bool isSelected =
-              index == 0; // 'All Brands' is selected by default in the image
-          return Container(
-            margin: const EdgeInsets.only(right: 10), // Spacing between tags
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? primaryPink
-                  : Colors.grey[200], // Pink if selected, grey otherwise
-              borderRadius: BorderRadius.circular(20), // Rounded corners
-            ),
-            child: Center(
-              child: Text(
-                tags[index],
-                style: TextStyle(
-                  color: isSelected
-                      ? Colors.white
-                      : Colors.black, // White text if selected, black otherwise
-                  fontWeight: FontWeight.w500,
+          final bool isSelected = index == selectedIndex;
+          return GestureDetector(
+            onTap: () {
+              print('Tapped on filter tag: ${tags[index]}');
+              // Implement actual filtering logic here
+              // setState(() { _selectedFilterTagIndex = index; });
+            },
+            child: Container(
+              margin: const EdgeInsets.only(right: 10), // Spacing between tags
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? primaryPink
+                    : Colors.grey[200], // Pink if selected, grey otherwise
+                borderRadius: BorderRadius.circular(20), // Rounded corners
+              ),
+              child: Center(
+                child: Text(
+                  tags[index],
+                  style: TextStyle(
+                    color: isSelected
+                        ? Colors.white
+                        : Colors
+                              .black, // White text if selected, black otherwise
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ),
@@ -408,37 +441,24 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Builds the horizontal list of product categories
+  // Builds the horizontal list of product categories (now dynamic)
   Widget _buildCategoriesList() {
-    final List<Map<String, String>> categories = [
-      {
-        'name': 'Skincare',
-        'image': 'https://placehold.co/100x100/F0F0F0/000000?text=S',
-      },
-      {
-        'name': 'Makeup',
-        'image': 'https://placehold.co/100x100/F0F0F0/000000?text=M',
-      },
-      {
-        'name': 'Cream',
-        'image': 'https://placehold.co/100x100/F0F0F0/000000?text=C',
-      },
-      {
-        'name': 'Perfume',
-        'image': 'https://placehold.co/100x100/F0F0F0/000000?text=P',
-      },
-      {
-        'name': 'Lotion',
-        'image': 'https://placehold.co/100x100/F0F0F0/000000?text=L',
-      },
-    ];
-
+    if (_categories.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 10.0),
+        child: Text(
+          'No categories available.',
+          style: TextStyle(color: Colors.grey),
+        ),
+      );
+    }
     return SizedBox(
       height: 100, // Fixed height for category items
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        itemCount: categories.length,
+        itemCount: _categories.length,
         itemBuilder: (context, index) {
+          final category = _categories[index];
           return Container(
             width: 80, // Fixed width for each category item
             margin: const EdgeInsets.only(right: 15),
@@ -446,17 +466,21 @@ class _HomeScreenState extends State<HomeScreen> {
               children: <Widget>[
                 CircleAvatar(
                   radius: 30,
-                  backgroundColor:
-                      Colors.grey[100], // Light grey background for icon/image
-                  backgroundImage: NetworkImage(
-                    categories[index]['image']!,
-                  ), // Category image
+                  backgroundColor: primaryPink.withOpacity(
+                    0.1,
+                  ), // Light pink background for icon
+                  child: Icon(
+                    Icons.category,
+                    color: primaryPink,
+                  ), // Generic icon as no image in model
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  categories[index]['name']!,
+                  category.name ?? 'Unknown', // Use category name from API
                   textAlign: TextAlign.center,
                   style: const TextStyle(fontSize: 13, color: Colors.black),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -466,48 +490,32 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Builds the grid of best seller products
-  Widget _buildBestSellersGrid() {
-    if (_isLoadingProducts || _isLoadingBrands) {
-      // Also check if brands are loading
-      return const Center(child: CircularProgressIndicator(color: primaryPink));
-    } else if (_productsErrorMessage != null || _brandsErrorMessage != null) {
-      String errorMessage = '';
-      if (_productsErrorMessage != null)
-        errorMessage += 'Products: $_productsErrorMessage\n';
-      if (_brandsErrorMessage != null)
-        errorMessage += 'Brands: $_brandsErrorMessage\n';
-      return Center(
-        child: Text(
-          errorMessage.trim(),
-          style: const TextStyle(color: Colors.red, fontSize: 16),
-          textAlign: TextAlign.center,
-        ),
-      );
-    } else if (_bestSellerProducts.isEmpty) {
+  // Builds the grid of products (Best Sellers)
+  Widget _buildProductGrid() {
+    if (_isLoading || _products.isEmpty) {
+      // Use the overall loading state
       return const Center(
         child: Text(
-          'No best seller products found.',
+          'No products available.',
           style: TextStyle(color: Colors.grey, fontSize: 16),
         ),
       );
-    } else {
-      return GridView.builder(
-        shrinkWrap: true, // Take only as much space as needed
-        physics:
-            const NeverScrollableScrollPhysics(), // Disable scrolling within the grid
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2, // Two items per row
-          crossAxisSpacing: 15, // Horizontal spacing
-          mainAxisSpacing: 15, // Vertical spacing
-          childAspectRatio: 0.7, // Aspect ratio of each grid item
-        ),
-        itemCount: _bestSellerProducts.length,
-        itemBuilder: (context, index) {
-          return _buildProductCard(_bestSellerProducts[index]);
-        },
-      );
     }
+    return GridView.builder(
+      shrinkWrap: true, // Take only as much space as needed
+      physics:
+          const NeverScrollableScrollPhysics(), // Disable scrolling within the grid
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2, // Two items per row
+        crossAxisSpacing: 15, // Horizontal spacing
+        mainAxisSpacing: 15, // Vertical spacing
+        childAspectRatio: 0.7, // Aspect ratio of each grid item
+      ),
+      itemCount: _products.length, // Use _products list
+      itemBuilder: (context, index) {
+        return _buildProductCard(_products[index]);
+      },
+    );
   }
 
   // Helper widget to build individual product cards
@@ -529,7 +537,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // Calculate prices and discount display
     final double? productPrice = product.price?.toDouble();
-    final int? productDiscount = product.discount;
+    final int? productDiscount =
+        product.discount; // This is the integer percentage (e.g., 10 for 10%)
 
     String displayOriginalPrice =
         '\$${productPrice?.toStringAsFixed(0) ?? '0'}.00';
@@ -538,7 +547,8 @@ class _HomeScreenState extends State<HomeScreen> {
     if (productPrice != null &&
         productDiscount != null &&
         productDiscount > 0) {
-      double discountedPrice = productPrice * (1 - productDiscount);
+      // Corrected: Divide productDiscount by 100 to get a decimal for calculation
+      double discountedPrice = productPrice * (1 - (productDiscount / 100));
       displayCurrentPrice = '\$${discountedPrice.toStringAsFixed(0)}.00';
     } else {
       displayCurrentPrice = '\$${productPrice?.toStringAsFixed(0) ?? '0'}.00';
@@ -546,8 +556,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final String displayDiscount =
         (productDiscount != null && productDiscount > 0)
-        ? '${(productDiscount * 100).toStringAsFixed(0)}%'
-        : '0%'; // Convert discount to percentage string
+        ? '${productDiscount.toStringAsFixed(0)}%' // Display the integer percentage directly
+        : '0%';
 
     // Get brand name from the map using brandId
     final String brandName =
@@ -617,7 +627,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Text(
-                        displayDiscount, // Use actual calculated discount
+                        '$displayDiscount OFF', // Use actual calculated discount
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 12,
