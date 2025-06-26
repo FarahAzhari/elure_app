@@ -1,12 +1,10 @@
 import 'package:elure_app/models/api_models.dart';
-import 'package:elure_app/screens/auth/profile_screen.dart';
-import 'package:elure_app/screens/brand/brand_screen.dart';
-import 'package:elure_app/screens/cart/cart_screen.dart';
-import 'package:elure_app/screens/category/category_screen.dart';
 import 'package:elure_app/screens/product/product_detail_screen.dart';
 import 'package:elure_app/services/api_service.dart';
 import 'package:flutter/material.dart';
 
+// HomeScreen now represents the content of the "Home" tab.
+// It no longer manages the BottomNavigationBar.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -17,9 +15,6 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   // Define the primary pink color for consistency, as observed in your designs.
   static const Color primaryPink = Color(0xFFE91E63);
-
-  // Add a state variable to manage the current index of the bottom navigation bar
-  int _selectedIndex = 0;
 
   // Instance of ApiService
   final ApiService _apiService = ApiService();
@@ -67,69 +62,12 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // Helper function to handle bottom navigation bar taps
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-
-    // Navigate to different screens based on the tapped index
-    if (index == 1) {
-      // Index 1 corresponds to 'Categories'
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const CategoryScreen()),
-      ).then((_) {
-        // After returning from CategoryScreen, reset selected index to Home (index 0)
-        setState(() {
-          _selectedIndex = 0;
-        });
-      });
-    } else if (index == 2) {
-      // Index 2 corresponds to 'Brands'
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const BrandScreen()),
-      ).then((_) {
-        // After returning from BrandScreen, reset selected index to Home (index 0)
-        setState(() {
-          _selectedIndex = 0;
-        });
-      });
-    } else if (index == 3) {
-      // Index 3 corresponds to 'Carts'
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const CartScreen()),
-      ).then((_) {
-        // After returning from CartScreen, reset selected index to Home (index 0)
-        setState(() {
-          _selectedIndex = 0;
-        });
-      });
-    } else if (index == 4) {
-      // Index 4 corresponds to 'Profile'
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const ProfileScreen(),
-        ), // Navigate to ProfileScreen
-      ).then((_) {
-        // After returning from ProfileScreen, reset selected index to Home (index 0)
-        setState(() {
-          _selectedIndex = 0;
-        });
-      });
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white, // Overall background color of the screen
       appBar: _buildAppBar(), // Custom AppBar widget
       body: SingleChildScrollView(
-        // The body will always show the home content
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: 16.0,
@@ -154,6 +92,9 @@ class _HomeScreenState extends State<HomeScreen> {
               // Categories Section Header
               _buildSectionHeader('Categories', () {
                 print('See All Categories tapped from Home');
+                // You can potentially use DefaultTabController.of(context).animateTo(index)
+                // if you want to switch tabs from within a content page.
+                // For now, this just prints to console.
               }),
               const SizedBox(height: 15),
 
@@ -164,6 +105,7 @@ class _HomeScreenState extends State<HomeScreen> {
               // Best Sellers Section Header
               _buildSectionHeader('Best Sellers', () {
                 print('See All Best Sellers tapped from Home');
+                // Similarly, this just prints for now.
               }),
               const SizedBox(height: 15),
 
@@ -174,12 +116,11 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ),
-      bottomNavigationBar:
-          _buildBottomNavigationBar(), // Custom Bottom Navigation Bar
+      // bottomNavigationBar: _buildBottomNavigationBar(), // REMOVED: Now managed by MainNavigationScreen
     );
   }
 
-  // --- Widget Builders for Reusable UI Components ---
+  // --- Widget Builders for Reusable UI Components (unchanged from your original) ---
 
   // Builds the custom AppBar
   PreferredSizeWidget _buildAppBar() {
@@ -235,6 +176,9 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           onPressed: () {
             print('Shopping Cart Tapped');
+            // If you want to navigate to the cart tab, you'd need to access the MainNavigationScreen's state.
+            // This usually involves a callback or a global state management solution.
+            // For now, it just prints.
           },
         ),
         // Notification Icon
@@ -675,48 +619,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
-    );
-  }
-
-  // Builds the Bottom Navigation Bar
-  Widget _buildBottomNavigationBar() {
-    return BottomNavigationBar(
-      backgroundColor: Colors.white, // White background
-      selectedItemColor: primaryPink, // Pink for selected icon/label
-      unselectedItemColor: Colors.grey[600], // Grey for unselected
-      currentIndex:
-          _selectedIndex, // Use the state variable for the current index
-      type: BottomNavigationBarType
-          .fixed, // Ensures all items are visible even with many
-      showSelectedLabels: true, // Always show labels for selected item
-      showUnselectedLabels: true, // Always show labels for unselected items
-      selectedLabelStyle: const TextStyle(
-        fontSize: 12,
-        fontWeight: FontWeight.bold,
-      ),
-      unselectedLabelStyle: const TextStyle(fontSize: 11),
-      onTap: _onItemTapped, // Call the new handler function
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home_outlined), label: 'Home'),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.category_outlined),
-          label: 'Categories',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(
-            Icons.diamond_outlined,
-          ), // Using diamond as placeholder for Brands
-          label: 'Brands',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.shopping_cart_outlined),
-          label: 'Carts',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.person_outlined),
-          label: 'Profile',
-        ),
-      ],
     );
   }
 }

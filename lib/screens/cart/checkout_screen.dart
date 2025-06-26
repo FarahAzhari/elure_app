@@ -1,5 +1,5 @@
 import 'package:elure_app/models/api_models.dart'; // Import API models for CheckoutData and CheckoutItem
-import 'package:elure_app/screens/home_screen.dart'; // Import HomeScreen to navigate back
+import 'package:elure_app/screens/main_navigation_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart'; // For date formatting
 
@@ -35,7 +35,7 @@ class CheckoutScreen extends StatelessWidget {
                   onPressed: () {
                     Navigator.of(context).pushAndRemoveUntil(
                       MaterialPageRoute(
-                        builder: (context) => const HomeScreen(),
+                        builder: (context) => const MainNavigationScreen(),
                       ),
                       (Route<dynamic> route) => false,
                     );
@@ -203,7 +203,9 @@ class CheckoutScreen extends StatelessWidget {
                 onPressed: () {
                   // Pop all routes until the HomeScreen is reached
                   Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(builder: (context) => const HomeScreen()),
+                    MaterialPageRoute(
+                      builder: (context) => const MainNavigationScreen(),
+                    ),
                     (Route<dynamic> route) => false,
                   );
                 },

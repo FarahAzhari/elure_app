@@ -1,6 +1,6 @@
 import 'package:elure_app/models/api_models.dart';
-import 'package:elure_app/screens/home_screen.dart'; // Your HomeScreen (assuming its path)
-import 'package:elure_app/screens/welcome_screen.dart'; // Your WelcomeScreen
+import 'package:elure_app/screens/main_navigation_screen.dart';
+import 'package:elure_app/screens/welcome_screen.dart';
 import 'package:elure_app/services/local_storage_service.dart';
 import 'package:flutter/material.dart';
 
@@ -58,17 +58,8 @@ class _MyAppState extends State<MyApp> {
       home: _isCheckingAuth
           ? const _SplashScreen() // Show splash screen while checking auth
           : (_isLoggedIn
-                ? const HomeScreen()
+                ? const MainNavigationScreen()
                 : const WelcomeScreen()), // Navigate based on auth status
-      // Routes are not directly used for initial navigation here because `home` takes precedence.
-      // However, you can keep them if `WelcomeScreen` or `HomeScreen` navigates using named routes.
-      // Example:
-      // routes: {
-      //   AppRouter.welcome: (context) => WelcomeScreen(),
-      //   AppRouter.home: (context) => HomeScreen(), // Add if needed for named navigation from other screens
-      //   // ... other routes defined in AppRouter
-      // },
-      // initialRoute: AppRouter.welcome, // Removed, as `home` handles initial navigation
     );
   }
 }

@@ -1,5 +1,5 @@
 import 'package:elure_app/models/api_models.dart';
-import 'package:elure_app/screens/home_screen.dart';
+import 'package:elure_app/screens/main_navigation_screen.dart';
 import 'package:elure_app/services/api_service.dart';
 import 'package:flutter/material.dart';
 
@@ -57,7 +57,7 @@ class _LoginTabState extends State<LoginTab> {
         // Use pushReplacement to prevent going back to login/signup from home
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          MaterialPageRoute(builder: (context) => const MainNavigationScreen()),
         );
       } on ErrorResponse catch (e) {
         // Handle API specific errors (e.g., validation errors, unauthorized)
