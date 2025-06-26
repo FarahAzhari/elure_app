@@ -292,10 +292,10 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           onPressed: () {
             print('Shopping Cart Tapped');
-            // Navigate to CartScreen (assuming it's a separate route)
-            // If Cart is part of a BottomNavigationBar in a parent, you'd
-            // trigger a tab change instead.
-            // Example: Navigator.push(context, MaterialPageRoute(builder: (context) => const CartScreen()));
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const CartScreen()),
+            );
           },
         ),
         // Notification Icon

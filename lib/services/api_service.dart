@@ -407,11 +407,8 @@ class ApiService {
     }
   }
 
-  // GET Riwayat Belanja
-  // The history endpoint response body is currently empty in the Postman collection provided.
-  // If it returns a list of history items in the future, you'll need to define a model for that (e.g., HistoryListResponse).
-  // For now, it returns dynamic as it's an empty or unstructured response.
-  Future<dynamic> getTransactionHistory() async {
+  // GET Riwayat Belanja - Now returns HistoryListResponse
+  Future<HistoryListResponse> getTransactionHistory() async {
     final token = await _localStorageService.getUserToken();
     if (token == null) {
       throw Exception('Authentication token not found. Please log in.');
@@ -420,15 +417,45 @@ class ApiService {
     final response = await _get('history', token: token);
 
     if (response.statusCode == 200) {
-      print('History response: ${response.body}');
-      // If the API starts returning structured data, change `dynamic` to `HistoryListResponse`
-      // and uncomment the line below:
-      // return HistoryListResponse.fromJson(jsonDecode(response.body));
-      return jsonDecode(
-        response.body,
-      ); // Or return a specific model if structure is provided
+      if (response.body.isEmpty) {
+        return HistoryListResponse(message: 'No history found.', data: []);
+      }
+      try {
+        // FIX: Correctly parse the JSON response into HistoryListResponse
+        return HistoryListResponse.fromJson(jsonDecode(response.body));
+      } on FormatException catch (e) {
+        print(
+          'Error: Failed to parse history response as valid JSON: ${response.body}. Exception: $e',
+        );
+        throw Exception(
+          'Failed to process history response: Invalid JSON format.',
+        );
+      } catch (e) {
+        print(
+          'Unexpected error parsing history response. Body: ${response.body}. Error: $e',
+        );
+        throw Exception(
+          'Failed to process history response: Unexpected data format.',
+        );
+      }
     } else {
-      throw ErrorResponse.fromJson(jsonDecode(response.body));
+      try {
+        throw ErrorResponse.fromJson(jsonDecode(response.body));
+      } on FormatException catch (e) {
+        print(
+          'Error: Failed to parse error response for history as valid JSON: ${response.body}. Exception: $e',
+        );
+        throw Exception(
+          'API error for history, but response format is invalid. Status: ${response.statusCode}',
+        );
+      } catch (e) {
+        print(
+          'Unexpected error parsing error response for history. Body: ${response.body}. Error: $e',
+        );
+        throw Exception(
+          'Failed to process API error for history: Unexpected data format on failure. Status: ${response.statusCode}',
+        );
+      }
     }
   }
 }

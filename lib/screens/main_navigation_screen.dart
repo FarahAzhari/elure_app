@@ -1,8 +1,8 @@
 import 'package:elure_app/screens/auth/profile_screen.dart';
 import 'package:elure_app/screens/brand/brand_screen.dart';
-import 'package:elure_app/screens/cart/cart_screen.dart';
 import 'package:elure_app/screens/category/category_screen.dart';
 import 'package:elure_app/screens/home_screen.dart';
+import 'package:elure_app/screens/report/history_screen.dart';
 import 'package:flutter/material.dart';
 
 class MainNavigationScreen extends StatefulWidget {
@@ -24,7 +24,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     const HomeScreen(), // Your existing home screen content
     const CategoryScreen(),
     const BrandScreen(),
-    const CartScreen(),
+    const HistoryScreen(),
     const ProfileScreen(),
   ];
 
@@ -75,8 +75,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           label: 'Brands',
         ),
         BottomNavigationBarItem(
-          icon: Icon(Icons.shopping_cart_outlined),
-          label: 'Carts',
+          icon: Icon(Icons.history), // New icon for History
+          label: 'History',
         ),
         BottomNavigationBarItem(
           icon: Icon(Icons.person_outlined),
