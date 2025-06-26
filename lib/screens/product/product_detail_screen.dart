@@ -249,7 +249,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
         widget.product.description ?? 'No description available.';
 
     final double? productPrice = widget.product.price?.toDouble();
-    final double? productDiscount = widget.product.discount;
+    final int? productDiscount = widget.product.discount;
 
     String displayOriginalPrice =
         '\$${productPrice?.toStringAsFixed(0) ?? '0'}.00';

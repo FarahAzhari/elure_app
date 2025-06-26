@@ -238,7 +238,7 @@ class ApiService {
     int stock, {
     int? categoryId, // Optional new field
     int? brandId, // Optional new field
-    double? discount, // Optional new field
+    int? discount, // Optional new field
     List<String>? images, // Optional new field
   }) async {
     final token = await _localStorageService.getUserToken();
@@ -275,7 +275,7 @@ class ApiService {
     int stock, {
     int? categoryId,
     int? brandId,
-    double? discount,
+    int? discount,
     List<String>? images,
   }) async {
     final token = await _localStorageService.getUserToken();

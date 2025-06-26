@@ -361,7 +361,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
 
     // Calculate prices and discount display
     final double? productPrice = product.price?.toDouble();
-    final double? productDiscount = product.discount;
+    final int? productDiscount = product.discount;
 
     String displayOriginalPrice =
         '\$${productPrice?.toStringAsFixed(0) ?? '0'}.00';

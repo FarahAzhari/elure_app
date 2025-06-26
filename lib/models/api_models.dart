@@ -10,17 +10,6 @@ int? _parseIntSafely(dynamic value) {
   return null; // Return null for unsupported types
 }
 
-// Helper to safely parse dynamic values to double?
-double? _parseDoubleSafely(dynamic value) {
-  if (value == null) return null;
-  if (value is double) return value;
-  if (value is int) return value.toDouble();
-  if (value is String) {
-    return double.tryParse(value);
-  }
-  return null;
-}
-
 // --- Generic Response Wrapper ---
 // A general structure for API responses that contain a message and optional data.
 class ApiResponse<T> {
@@ -366,7 +355,7 @@ class Product {
   final int? stock;
   final int? categoryId; // New field
   final int? brandId; // New field
-  final double? discount; // New field, assuming percentage
+  final int? discount; // New field, assuming percentage
   final List<String>?
   images; // New field, list of image URLs (base64 or actual URLs)
   final String? createdAt;
@@ -395,7 +384,7 @@ class Product {
       stock: _parseIntSafely(json['stock']), // Use safe parsing
       categoryId: _parseIntSafely(json['category_id']), // Parse new field
       brandId: _parseIntSafely(json['brand_id']), // Parse new field
-      discount: _parseDoubleSafely(json['discount']), // Parse new field
+      discount: _parseIntSafely(json['discount']), // Parse new field
       // IMPORTANT FIX: Change from json['images'] to json['image_urls']
       images: json['image_urls'] != null
           ? List<String>.from(json['image_urls'].map((x) => x.toString()))

@@ -4,6 +4,7 @@ import 'dart:typed_data'; // New import for Uint8List
 
 import 'package:elure_app/models/api_models.dart'; // Import API models
 import 'package:elure_app/services/api_service.dart'; // Import ApiService
+import 'package:elure_app/services/local_storage_service.dart'; // Import LocalStorageService
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart'; // New import for image picking
 
@@ -20,6 +21,8 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
       'https://apptoko.mobileprojp.com/public/'; // Base URL for images
 
   final ApiService _apiService = ApiService();
+  final LocalStorageService _localStorageService =
+      LocalStorageService(); // Added LocalStorageService
   final GlobalKey<FormState> _addProductFormKey = GlobalKey<FormState>();
   final ImagePicker _picker = ImagePicker(); // Instance of ImagePicker
 
@@ -69,6 +72,9 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
   // List to hold existing image URLs from the API for the product being edited
   final List<String> _existingEditProductUrls = [];
 
+  // Store original image paths (relative) to compare for changes when updating.
+  List<String>? _originalProductImagePaths;
+
   // Loading and error states
   bool _isLoadingProducts = true;
   String? _productsErrorMessage;
@@ -80,9 +86,7 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchCategoriesAndBrands().then((_) {
-      _fetchProducts(); // Only fetch products after categories and brands are loaded
-    });
+    _checkAdminStatusAndLoadData(); // Call this to check admin status first
   }
 
   @override
@@ -99,6 +103,27 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
     _editStockController.dispose();
     _editDiscountController.dispose();
     super.dispose();
+  }
+
+  // Check if user is admin before loading data
+  Future<void> _checkAdminStatusAndLoadData() async {
+    final user = await _localStorageService.getUserData();
+    if (user?.email == 'admin@mail.com') {
+      _fetchCategoriesAndBrands().then((_) {
+        _fetchProducts(); // Only fetch products after categories and brands are loaded
+      });
+    } else {
+      // Not an admin, display an error or redirect
+      if (mounted) {
+        setState(() {
+          _productsErrorMessage =
+              'Access Denied: You must be an administrator to manage products.';
+          _isLoadingProducts = false;
+          _isLoadingBrands = false;
+          _isLoadingCategories = false;
+        });
+      }
+    }
   }
 
   // Function to pick multiple images and convert them to Base64
@@ -292,6 +317,13 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
       }
 
       try {
+        // Parse discount as int. If the API expects double, you need to convert it here.
+        // Assuming Product model and API service now use int? for discount.
+        int? discountValue;
+        if (_discountController.text.isNotEmpty) {
+          discountValue = int.tryParse(_discountController.text);
+        }
+
         final ProductAddResponse response = await _apiService.addProduct(
           _nameController.text,
           _descriptionController.text,
@@ -299,7 +331,7 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
           int.parse(_stockController.text),
           categoryId: _selectedCategory?.id,
           brandId: _selectedBrand?.id,
-          discount: double.tryParse(_discountController.text),
+          discount: discountValue, // Pass the converted discount
           images: _addImagesBase64, // Pass the list of Base64 images
         );
 
@@ -367,13 +399,56 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
         ).showSnackBar(const SnackBar(content: Text('Updating product...')));
       }
 
-      // Combine existing URLs and new Base64 images
-      final List<String> allImagesToSend = [
-        ..._existingEditProductUrls,
-        ..._newEditImagesBase64,
-      ];
+      // Convert full URLs back to relative paths for existing images that are kept
+      final List<String> currentExistingImagePaths = [];
+      for (String fullUrl in _existingEditProductUrls) {
+        if (fullUrl.startsWith(_baseUrl)) {
+          currentExistingImagePaths.add(fullUrl.substring(_baseUrl.length));
+        } else {
+          // If a fullUrl doesn't start with _baseUrl, log a warning and include it as is.
+          print(
+            'WARNING: Image URL "$fullUrl" does not start with base URL "$_baseUrl". Sending as is.',
+          );
+          currentExistingImagePaths.add(fullUrl);
+        }
+      }
+
+      List<String>? imagesPayloadToSend;
+
+      if (_newEditImagesBase64.isNotEmpty) {
+        // If new images are picked, ONLY send the new Base64 images.
+        // This assumes the backend's PUT behavior is to ADD these to existing ones
+        // without duplicating the existing ones that are implicitly kept.
+        imagesPayloadToSend = _newEditImagesBase64;
+        print('DEBUG: Sending only new Base64 images in payload.');
+      } else {
+        // No new images picked. Check if existing images were explicitly removed.
+        final Set<String> originalImagePathsSet =
+            (_originalProductImagePaths ?? []).toSet();
+        final Set<String> currentExistingImagePathsSet =
+            currentExistingImagePaths.toSet();
+
+        // If the set of existing images is different from original, it means some were removed.
+        if (originalImagePathsSet.length !=
+                currentExistingImagePathsSet.length ||
+            !originalImagePathsSet.containsAll(currentExistingImagePathsSet)) {
+          imagesPayloadToSend =
+              currentExistingImagePaths; // Send the remaining existing paths
+          print('DEBUG: Sending updated existing image paths due to removals.');
+        } else {
+          // No new images AND no existing images were removed.
+          // Omit the 'images' field to prevent backend from duplicating.
+          imagesPayloadToSend = null;
+          print('DEBUG: No image changes, "images" field will be omitted.');
+        }
+      }
 
       try {
+        int? discountValue;
+        if (_editDiscountController.text.isNotEmpty) {
+          discountValue = int.tryParse(_editDiscountController.text);
+        }
+
         final ProductUpdateResponse response = await _apiService.editProduct(
           _editingProduct!.id!,
           _editNameController.text,
@@ -382,8 +457,9 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
           int.parse(_editStockController.text),
           categoryId: _editSelectedCategory?.id,
           brandId: _editSelectedBrand?.id,
-          discount: double.tryParse(_editDiscountController.text),
-          images: allImagesToSend, // Pass the combined list of images
+          discount: discountValue,
+          images:
+              imagesPayloadToSend, // Pass the conditionally prepared payload
         );
 
         if (mounted) {
@@ -402,6 +478,7 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
             _newEditImagesBase64.clear(); // Clear new Base64 list
             _newPickedEditImageBytes.clear(); // Clear new preview list
             _existingEditProductUrls.clear(); // Clear existing URLs
+            _originalProductImagePaths = null; // Clear original paths
             _editSelectedCategory = null;
             _editSelectedBrand = null;
           });
@@ -494,12 +571,23 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
       _editDescriptionController.text = product.description ?? '';
       _editPriceController.text = product.price?.toString() ?? '';
       _editStockController.text = product.stock?.toString() ?? '';
+
+      // Clear controller before setting to prevent old values lingering
+      _editDiscountController.clear();
+      // Set discount directly from product.discount, as API returns the integer value.
+      print(
+        'DEBUG: Product discount from API: ${product.discount}',
+      ); // Debug print
       _editDiscountController.text = product.discount?.toString() ?? '';
+      print(
+        'DEBUG: Discount controller text set to: ${_editDiscountController.text}',
+      ); // Debug print
 
       // Clear previous images for edit form
       _existingEditProductUrls.clear(); // Clear existing URLs
       _newEditImagesBase64.clear(); // Clear newly picked Base64s
       _newPickedEditImageBytes.clear(); // Clear bytes for new Base64 previews
+      _originalProductImagePaths = []; // Initialize for current product
 
       print('Opening edit dialog for product: ${product.name}');
       print(
@@ -508,24 +596,63 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
 
       // Populate existing images from product.images (which are URLs)
       if (product.images != null && product.images!.isNotEmpty) {
-        for (String imageString in product.images!) {
-          // Add only if it's a valid string and not an empty string
-          if (imageString.isNotEmpty) {
+        for (String? imageString in product.images!) {
+          // Use String? to handle potential nulls
+          if (imageString != null && imageString.isNotEmpty) {
             String imageUrlToDisplay = imageString;
-            // If it's not already a full URL (check for http:// or https://), prepend the base URL
-            if (!imageString.startsWith('http://') &&
-                !imageString.startsWith('https://')) {
-              imageUrlToDisplay = '$_baseUrl$imageString';
+            String imagePathForComparison; // Store relative path for comparison
+
+            // Case 1: Already a full HTTP/HTTPS URL
+            if (imageString.startsWith('http://') ||
+                imageString.startsWith('https://')) {
+              imagePathForComparison = imageString.startsWith(_baseUrl)
+                  ? imageString.substring(_baseUrl.length)
+                  : imageString; // Keep full URL if not from our base
             }
-            _existingEditProductUrls.add(imageUrlToDisplay);
+            // Case 2: Relative path, prepend base URL for display
+            else {
+              imageUrlToDisplay = '$_baseUrl$imageString';
+              imagePathForComparison = imageString;
+            }
+
+            // Check if it has a valid image extension and is a valid URI for display
+            final bool isImageExtension =
+                imageUrlToDisplay.toLowerCase().endsWith('.jpg') ||
+                imageUrlToDisplay.toLowerCase().endsWith('.jpeg') ||
+                imageUrlToDisplay.toLowerCase().endsWith('.png') ||
+                imageUrlToDisplay.toLowerCase().endsWith('.gif') ||
+                imageUrlToDisplay.toLowerCase().endsWith(
+                  '.webp',
+                ); // Added .webp
+            final bool isValidUri =
+                Uri.tryParse(imageUrlToDisplay)?.hasAbsolutePath ?? false;
+
+            if (isImageExtension && isValidUri) {
+              _existingEditProductUrls.add(imageUrlToDisplay);
+              _originalProductImagePaths!.add(
+                imagePathForComparison,
+              ); // Store relative path for comparison
+              print('DEBUG: Added image URL to display: $imageUrlToDisplay');
+              print(
+                'DEBUG: Stored original image path for comparison: $imagePathForComparison',
+              );
+            } else {
+              print(
+                'DEBUG: Did not add image string to display: $imageString (due to invalid format/extension or URI)',
+              );
+            }
+          } else {
             print(
-              'Processed image URL for display: $imageUrlToDisplay',
-            ); // Debug
+              'DEBUG: Skipped null or empty image URL from API: $imageString',
+            );
           }
         }
       }
       print(
         'After loading existing images in edit dialog, _existingEditProductUrls count: ${_existingEditProductUrls.length}',
+      ); // Debug print
+      print(
+        'Original image paths for comparison count: ${_originalProductImagePaths?.length}',
       ); // Debug print
 
       _editSelectedCategory = _categoriesMap[product.categoryId];
@@ -618,7 +745,10 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
                           value: _editSelectedCategory,
                           hint: const Text('Select Category'),
                           onChanged: (Category? newValue) {
+                            // Use modalSetState to update the state within the modal
+                            // This ensures the dropdown reflects the change immediately
                             setState(() {
+                              // Changed from modalSetState to setState
                               _editSelectedCategory = newValue;
                             });
                           },
@@ -650,6 +780,7 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
                           hint: const Text('Select Brand'),
                           onChanged: (Brand? newValue) {
                             setState(() {
+                              // Changed from modalSetState to setState
                               _editSelectedBrand = newValue;
                             });
                           },
@@ -667,13 +798,19 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
                   const SizedBox(height: 15),
                   _buildTextField(
                     controller: _editDiscountController,
-                    labelText: 'Discount (e.g., 0.10 for 10%)',
+                    labelText: 'Discount (e.g., 10 for 10%)', // Updated label
                     keyboardType: TextInputType.number,
                     validator: (value) {
-                      if (value != null &&
-                          value.isNotEmpty &&
-                          double.tryParse(value) == null) {
-                        return 'Please enter a valid number for discount';
+                      if (value != null && value.isNotEmpty) {
+                        final int? discount = int.tryParse(
+                          value,
+                        ); // Parse as int
+                        if (discount == null ||
+                            discount < 0 ||
+                            discount > 100) {
+                          // Validating 0-100
+                          return 'Please enter a valid number for discount (0-100)';
+                        }
                       }
                       return null;
                     },
@@ -788,7 +925,7 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
                                 ),
                               ],
                             ),
-                          // Display newly picked images (Base64)
+                          // Display newly picked images (from Uint8List for preview)
                           for (
                             int i = 0;
                             i < _newPickedEditImageBytes.length;
@@ -810,16 +947,6 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
                                       height: 100,
                                       width: 100,
                                       fit: BoxFit.cover,
-                                      errorBuilder:
-                                          (context, error, stackTrace) =>
-                                              Container(
-                                                height: 100,
-                                                width: 100,
-                                                color: Colors.grey[200],
-                                                child: const Icon(
-                                                  Icons.broken_image,
-                                                ),
-                                              ),
                                     ),
                                   ),
                                 ),
@@ -833,7 +960,6 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
                                       size: 24,
                                     ),
                                     onPressed: () {
-                                      // Use modalSetState to update the state within the modal
                                       modalSetState(() {
                                         _removeImage(
                                           i,
@@ -851,22 +977,58 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
                     },
                   ),
                   const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton(
-                      onPressed: _handleUpdateProduct,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: primaryPink,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(25),
+                  // Update and Cancel buttons for edit form
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: _handleUpdateProduct,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryPink,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 15),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          child: const Text('Update Product'),
                         ),
                       ),
-                      child: const Text(
-                        'Update Product',
-                        style: TextStyle(fontSize: 16, color: Colors.white),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () {
+                            Navigator.pop(context); // Close the modal
+                            // Optionally, reset editing state here if not handled by modal close
+                            setState(() {
+                              _editingProduct = null;
+                              _editNameController.clear();
+                              _editDescriptionController.clear();
+                              _editPriceController.clear();
+                              _editStockController.clear();
+                              _editDiscountController.clear();
+                              _newEditImagesBase64.clear();
+                              _newPickedEditImageBytes.clear();
+                              _existingEditProductUrls.clear();
+                              _originalProductImagePaths =
+                                  null; // Clear original paths on cancel
+                              _editSelectedCategory = null;
+                              _editSelectedBrand = null;
+                            });
+                          },
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: primaryPink,
+                            side: const BorderSide(color: primaryPink),
+                            padding: const EdgeInsets.symmetric(vertical: 15),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          child: const Text('Cancel'),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                   const SizedBox(height: 20),
                 ],
@@ -878,48 +1040,34 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
-          onPressed: () {
-            Navigator.pop(context); // Go back to the Admin Dashboard
-          },
-        ),
-        title: const Text(
-          'Manage Products',
-          style: TextStyle(
-            color: Colors.black,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        centerTitle: true,
+  // Common InputDecoration for text fields
+  InputDecoration _inputDecoration(String labelText) {
+    return InputDecoration(
+      labelText: labelText,
+      filled: true,
+      fillColor: Colors.grey[100],
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(15),
+        borderSide: BorderSide.none,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            // Add New Product Form
-            _buildSectionTitle('Add New Product'),
-            const SizedBox(height: 10),
-            _buildAddProductForm(),
-            const SizedBox(height: 30),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+    );
+  }
 
-            // Product List
-            _buildSectionTitle('Existing Products'),
-            const SizedBox(height: 10),
-            _buildProductList(),
-            const SizedBox(height: 20),
-          ],
-        ),
-      ),
+  // Common TextFormField builder
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String labelText,
+    TextInputType keyboardType = TextInputType.text,
+    int maxLines = 1,
+    String? Function(String?)? validator,
+  }) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: keyboardType,
+      maxLines: maxLines,
+      decoration: _inputDecoration(labelText),
+      validator: validator,
     );
   }
 
@@ -935,6 +1083,67 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
           color: Colors.black,
         ),
       ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Determine overall loading state
+    bool overallLoading =
+        _isLoadingProducts || _isLoadingBrands || _isLoadingCategories;
+
+    // Determine overall error message
+    String? overallErrorMessage;
+    if (_productsErrorMessage != null) {
+      overallErrorMessage = 'Products: $_productsErrorMessage';
+    } else if (_brandsErrorMessage != null) {
+      overallErrorMessage = 'Brands: $_brandsErrorMessage';
+    } else if (_categoriesErrorMessage != null) {
+      overallErrorMessage = 'Categories: $_categoriesErrorMessage';
+    }
+
+    return Scaffold(
+      backgroundColor: Colors.grey[50],
+      appBar: AppBar(
+        title: const Text(
+          'Manage Products',
+        ), // Changed title to be static for consistency
+        backgroundColor: primaryPink,
+        foregroundColor: Colors.white,
+        centerTitle: true,
+      ),
+      body: overallLoading
+          ? const Center(child: CircularProgressIndicator(color: primaryPink))
+          : overallErrorMessage != null
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Text(
+                  overallErrorMessage,
+                  style: const TextStyle(color: Colors.red, fontSize: 16),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            )
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  // --- Add Product Form ---
+                  _buildSectionTitle('Add New Product'),
+                  const SizedBox(height: 10),
+                  _buildAddProductForm(),
+                  const SizedBox(height: 30),
+
+                  // --- Product List ---
+                  _buildSectionTitle('Existing Products'),
+                  const SizedBox(height: 10),
+                  _buildProductList(),
+                  const SizedBox(height: 20),
+                ],
+              ),
+            ),
     );
   }
 
@@ -1063,13 +1272,15 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
             const SizedBox(height: 15),
             _buildTextField(
               controller: _discountController,
-              labelText: 'Discount (e.g., 0.10 for 10%)',
+              labelText: 'Discount (e.g., 10 for 10%)', // Updated label
               keyboardType: TextInputType.number,
               validator: (value) {
-                if (value != null &&
-                    value.isNotEmpty &&
-                    double.tryParse(value) == null) {
-                  return 'Please enter a valid number for discount';
+                if (value != null && value.isNotEmpty) {
+                  final int? discount = int.tryParse(value); // Parse as int
+                  if (discount == null || discount < 0 || discount > 100) {
+                    // Validating 0-100
+                    return 'Please enter a valid number for discount (0-100)';
+                  }
                 }
                 return null;
               },
@@ -1170,37 +1381,6 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
     );
   }
 
-  // Helper for consistent text input fields
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String labelText,
-    TextInputType keyboardType = TextInputType.text,
-    int maxLines = 1,
-    String? Function(String?)? validator,
-  }) {
-    return TextFormField(
-      controller: controller,
-      keyboardType: keyboardType,
-      maxLines: maxLines,
-      decoration: _inputDecoration(labelText),
-      validator: validator,
-    );
-  }
-
-  // Helper for consistent InputDecoration
-  InputDecoration _inputDecoration(String labelText) {
-    return InputDecoration(
-      labelText: labelText,
-      filled: true,
-      fillColor: Colors.grey[100],
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide.none,
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-    );
-  }
-
   // Displays the list of existing products
   Widget _buildProductList() {
     if (_isLoadingProducts || _isLoadingCategories || _isLoadingBrands) {
@@ -1238,7 +1418,7 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
           final product = _products[index];
           final categoryName =
               _categoriesMap[product.categoryId]?.name ?? 'N/A';
-          final brandName = _brandsMap[product.brandId]?.name ?? 'N/A';
+          final brandName = _brandsMap[product.id]?.name ?? 'N/A';
 
           // Determine the image URL for display
           Widget productImageWidget;
@@ -1254,16 +1434,21 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
               width: 80,
               height: 80,
               fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => Container(
-                width: 80,
-                height: 80,
-                color: Colors.grey[200],
-                child: const Icon(
-                  Icons.broken_image,
-                  size: 40,
-                  color: Colors.grey,
-                ),
-              ),
+              errorBuilder: (context, error, stackTrace) {
+                print(
+                  'Error loading product image: $imageUrlToDisplay, Error: $error',
+                );
+                return Container(
+                  width: 80,
+                  height: 80,
+                  color: Colors.grey[200],
+                  child: const Icon(
+                    Icons.broken_image,
+                    size: 40,
+                    color: Colors.grey,
+                  ),
+                );
+              },
             );
           } else {
             productImageWidget = Container(
@@ -1350,7 +1535,8 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
                             if (product.discount != null &&
                                 product.discount! > 0)
                               Text(
-                                'Disc: ${(product.discount! * 100).toStringAsFixed(0)}%',
+                                // Display discount directly as it's returned as an integer percentage
+                                'Disc: ${product.discount!.toStringAsFixed(0)}%',
                                 style: const TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w600,
