@@ -7,6 +7,7 @@ import 'package:elure_app/services/api_service.dart'; // Import ApiService
 import 'package:elure_app/services/local_storage_service.dart'; // Import LocalStorageService
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart'; // New import for image picking
+import 'package:intl/intl.dart';
 
 class ManageProductsScreen extends StatefulWidget {
   const ManageProductsScreen({super.key});
@@ -1383,6 +1384,13 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
 
   // Displays the list of existing products
   Widget _buildProductList() {
+    // Initialize NumberFormat for Rupiah (IDR) with dot as thousands separator
+    final NumberFormat currencyFormatter = NumberFormat.currency(
+      locale: 'id_ID', // Indonesian locale
+      symbol: 'Rp', // Rupiah symbol
+      decimalDigits: 0, // No decimal digits for whole rupiah
+    );
+
     if (_isLoadingProducts || _isLoadingCategories || _isLoadingBrands) {
       return const Center(child: CircularProgressIndicator(color: primaryPink));
     } else if (_productsErrorMessage != null ||
@@ -1418,7 +1426,27 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
           final product = _products[index];
           final categoryName =
               _categoriesMap[product.categoryId]?.name ?? 'N/A';
-          final brandName = _brandsMap[product.id]?.name ?? 'N/A';
+          final brandName = _brandsMap[product.brandId]?.name ?? 'N/A';
+
+          // Calculate prices and discount display
+          final double? productPrice = product.price?.toDouble();
+          final double? productDiscount = product.discount
+              ?.toDouble(); // Explicitly cast to double?
+
+          String displayOriginalPrice = currencyFormatter.format(
+            productPrice ?? 0,
+          );
+          String displayCurrentPrice;
+
+          if (productPrice != null &&
+              productDiscount != null &&
+              productDiscount > 0) {
+            double discountedPrice =
+                productPrice * (1 - (productDiscount / 100));
+            displayCurrentPrice = currencyFormatter.format(discountedPrice);
+          } else {
+            displayCurrentPrice = currencyFormatter.format(productPrice ?? 0);
+          }
 
           // Determine the image URL for display
           Widget productImageWidget;
@@ -1517,7 +1545,7 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              'Price: \$${product.price?.toStringAsFixed(0) ?? '0'}',
+                              'Price: $displayOriginalPrice',
                               style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
@@ -1545,7 +1573,21 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
                               ),
                           ],
                         ),
-                        const SizedBox(height: 10),
+                        // const SizedBox(height: 10),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Price after discount: $displayCurrentPrice',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: primaryPink,
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 10),
                         // Action buttons for Edit and Delete
                         Row(
                           mainAxisAlignment: MainAxisAlignment.end,
