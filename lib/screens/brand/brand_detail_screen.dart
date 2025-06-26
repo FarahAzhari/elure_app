@@ -2,6 +2,7 @@ import 'package:elure_app/models/api_models.dart'; // Import API models for Prod
 import 'package:elure_app/screens/product/product_detail_screen.dart'; // For navigating to product details
 import 'package:elure_app/services/api_service.dart'; // Import ApiService
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart'; // Import for currency formatting
 
 class BrandDetailScreen extends StatefulWidget {
   final int brandId; // The ID of the brand
@@ -25,15 +26,10 @@ class _BrandDetailScreenState extends State<BrandDetailScreen> {
   final ApiService _apiService = ApiService();
 
   List<Product> _products = [];
+  Map<int, Brand> _brandsMap =
+      {}; // To map brand IDs to brand names for product cards
   Map<int, Category> _categoriesMap =
       {}; // To map category IDs to category names for product cards
-
-  int _productCount = 0; // To store the count of products for the brand
-
-  bool _isLoadingProducts = true;
-  String? _productsErrorMessage;
-  bool _isLoadingCategories = true; // For fetching categories to resolve names
-  String? _categoriesErrorMessage;
 
   // Combined loading state for initial data
   bool _isLoadingInitialData = true;
@@ -45,7 +41,7 @@ class _BrandDetailScreenState extends State<BrandDetailScreen> {
     _fetchInitialData(); // Fetch all necessary data when the screen initializes
   }
 
-  // Fetches initial data: categories (for product card display) and then products by brand
+  // Fetches initial data: categories, brands (for product card display) and then products by category
   Future<void> _fetchInitialData() async {
     setState(() {
       _isLoadingInitialData = true;
@@ -53,8 +49,11 @@ class _BrandDetailScreenState extends State<BrandDetailScreen> {
     });
 
     try {
-      await _fetchCategories(); // First, fetch categories to build the map
-      await _fetchProductsByBrand(); // Then, fetch and filter products
+      await Future.wait([
+        _fetchCategories(), // First, fetch categories to build the map
+        _fetchBrands(), // Then, fetch brands to build the map
+      ]);
+      await _fetchProductsByBrand(); // Finally, fetch and filter products
 
       if (mounted) {
         setState(() {
@@ -64,10 +63,7 @@ class _BrandDetailScreenState extends State<BrandDetailScreen> {
     } on ErrorResponse catch (e) {
       if (mounted) {
         setState(() {
-          // Append error message to existing ones for a comprehensive view
-          _initialDataErrorMessage = _initialDataErrorMessage != null
-              ? '${_initialDataErrorMessage}\nInitial Data: ${e.message}'
-              : 'Initial Data: ${e.message}';
+          _initialDataErrorMessage = e.message;
           _isLoadingInitialData = false;
         });
         print('BrandDetail: Error fetching initial data: ${e.message}');
@@ -75,10 +71,8 @@ class _BrandDetailScreenState extends State<BrandDetailScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          // Append error message to existing ones for a comprehensive view
-          _initialDataErrorMessage = _initialDataErrorMessage != null
-              ? '${_initialDataErrorMessage}\nInitial Data: ${e.toString()}'
-              : 'Initial Data: ${e.toString()}';
+          _initialDataErrorMessage =
+              'BrandDetail: Failed to load initial data: ${e.toString()}';
           _isLoadingInitialData = false;
         });
         print('BrandDetail: Unexpected error fetching initial data: $e');
@@ -95,24 +89,54 @@ class _BrandDetailScreenState extends State<BrandDetailScreen> {
           _categoriesMap = {
             for (var c in categoryResponse.data ?? []) c.id!: c,
           };
-          _isLoadingCategories = false; // Mark categories as loaded
         });
       }
     } on ErrorResponse catch (e) {
       print('BrandDetail: Error fetching categories: ${e.message}');
       if (mounted) {
         setState(() {
-          _categoriesErrorMessage = e.message;
-          _isLoadingCategories = false;
+          _initialDataErrorMessage = _initialDataErrorMessage != null
+              ? '${_initialDataErrorMessage}\nCategories: ${e.message}'
+              : 'Categories: ${e.message}';
         });
       }
     } catch (e) {
       print('BrandDetail: Unexpected error fetching categories: $e');
       if (mounted) {
         setState(() {
-          _categoriesErrorMessage =
-              'Failed to load categories: ${e.toString()}';
-          _isLoadingCategories = false;
+          _initialDataErrorMessage = _initialDataErrorMessage != null
+              ? '${_initialDataErrorMessage}\nCategories: ${e.toString()}'
+              : 'Categories: ${e.toString()}';
+        });
+      }
+    }
+  }
+
+  // Function to fetch brands and create a map for quick lookup
+  Future<void> _fetchBrands() async {
+    try {
+      final brandResponse = await _apiService.getBrands();
+      if (mounted) {
+        setState(() {
+          _brandsMap = {for (var b in brandResponse.data ?? []) b.id!: b};
+        });
+      }
+    } on ErrorResponse catch (e) {
+      print('BrandDetail: Error fetching brands: ${e.message}');
+      if (mounted) {
+        setState(() {
+          _initialDataErrorMessage = _initialDataErrorMessage != null
+              ? '${_initialDataErrorMessage}\nBrands: ${e.message}'
+              : 'Brands: ${e.message}';
+        });
+      }
+    } catch (e) {
+      print('BrandDetail: Unexpected error fetching brands: $e');
+      if (mounted) {
+        setState(() {
+          _initialDataErrorMessage = _initialDataErrorMessage != null
+              ? '${_initialDataErrorMessage}\nBrands: ${e.toString()}'
+              : 'Brands: ${e.toString()}';
         });
       }
     }
@@ -120,23 +144,17 @@ class _BrandDetailScreenState extends State<BrandDetailScreen> {
 
   // Function to fetch all products and then filter them by the current brand ID
   Future<void> _fetchProductsByBrand() async {
-    setState(() {
-      _isLoadingProducts = true;
-      _productsErrorMessage = null;
-    });
-
     try {
       final ProductListResponse response = await _apiService.getProducts();
       if (mounted) {
-        // Filter products by brandId (widget.brandId is guaranteed non-null due to 'required' in constructor)
+        // Filter products by brandId
         List<Product> filteredProducts =
             response.data?.where((p) => p.brandId == widget.brandId).toList() ??
             [];
 
         setState(() {
           _products = filteredProducts;
-          _productCount = filteredProducts.length; // Update product count
-          _isLoadingProducts = false;
+          // Update product count
         });
         print(
           'BrandDetail: Products fetched and filtered successfully for ${widget.brandName}: ${_products.length} items',
@@ -145,17 +163,18 @@ class _BrandDetailScreenState extends State<BrandDetailScreen> {
     } on ErrorResponse catch (e) {
       if (mounted) {
         setState(() {
-          _productsErrorMessage = e.message;
-          _isLoadingProducts = false;
+          _initialDataErrorMessage = _initialDataErrorMessage != null
+              ? '${_initialDataErrorMessage}\nProducts: ${e.message}'
+              : 'Products: ${e.message}';
         });
         print('BrandDetail: Error fetching products: ${e.message}');
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _productsErrorMessage =
-              'BrandDetail: Failed to load products: ${e.toString()}';
-          _isLoadingProducts = false;
+          _initialDataErrorMessage = _initialDataErrorMessage != null
+              ? '${_initialDataErrorMessage}\nProducts: ${e.toString()}'
+              : 'Products: ${e.toString()}';
         });
         print('BrandDetail: Unexpected error fetching products: $e');
       }
@@ -230,7 +249,7 @@ class _BrandDetailScreenState extends State<BrandDetailScreen> {
         },
       ),
       title: Text(
-        '${widget.brandName} (${_productCount} products)', // Display brand name and product count
+        widget.brandName, // Display brand name and product count
         style: const TextStyle(
           color: Colors.black,
           fontSize: 20,
@@ -294,32 +313,7 @@ class _BrandDetailScreenState extends State<BrandDetailScreen> {
 
   // Builds the grid of products
   Widget _buildProductGrid() {
-    if (_isLoadingProducts || _isLoadingCategories) {
-      // Check both loading states
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(20.0),
-          child: CircularProgressIndicator(color: primaryPink),
-        ),
-      );
-    } else if (_productsErrorMessage != null ||
-        _categoriesErrorMessage != null) {
-      String errorMessage = '';
-      if (_productsErrorMessage != null)
-        errorMessage += 'Products: $_productsErrorMessage\n';
-      if (_categoriesErrorMessage != null)
-        errorMessage += 'Categories: $_categoriesErrorMessage\n';
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Text(
-            errorMessage.trim(),
-            style: const TextStyle(color: Colors.red, fontSize: 16),
-            textAlign: TextAlign.center,
-          ),
-        ),
-      );
-    } else if (_products.isEmpty) {
+    if (_products.isEmpty) {
       return const Center(
         child: Padding(
           padding: EdgeInsets.all(20.0),
@@ -350,7 +344,7 @@ class _BrandDetailScreenState extends State<BrandDetailScreen> {
     }
   }
 
-  // Helper widget to build individual product cards (reused from CategoryDetailScreen)
+  // Helper widget to build individual product cards
   Widget _buildProductCard(Product product) {
     // Determine the image URL for the product card
     String imageUrlToDisplay = '';
@@ -367,22 +361,28 @@ class _BrandDetailScreenState extends State<BrandDetailScreen> {
           'https://placehold.co/150x150/FF00FF/FFFFFF?text=${product.name?.substring(0, 1) ?? 'P'}';
     }
 
+    // Initialize NumberFormat for Rupiah (IDR) with dot as thousands separator
+    final NumberFormat currencyFormatter = NumberFormat.currency(
+      locale: 'id_ID', // Indonesian locale
+      symbol: 'Rp', // Rupiah symbol
+      decimalDigits: 0, // No decimal digits for whole rupiah
+    );
+
     // Calculate prices and discount display
     final double? productPrice = product.price?.toDouble();
-    // Corrected: Explicitly cast to double? if product.discount is int?
-    final double? productDiscount = product.discount?.toDouble();
+    final double? productDiscount = product.discount
+        ?.toDouble(); // Explicitly cast to double?
 
-    String displayOriginalPrice =
-        '\$${productPrice?.toStringAsFixed(0) ?? '0'}.00';
+    String displayOriginalPrice = currencyFormatter.format(productPrice ?? 0);
     String displayCurrentPrice;
 
     if (productPrice != null &&
         productDiscount != null &&
         productDiscount > 0) {
       double discountedPrice = productPrice * (1 - (productDiscount / 100));
-      displayCurrentPrice = '\$${discountedPrice.toStringAsFixed(0)}.00';
+      displayCurrentPrice = currencyFormatter.format(discountedPrice);
     } else {
-      displayCurrentPrice = '\$${productPrice?.toStringAsFixed(0) ?? '0'}.00';
+      displayCurrentPrice = currencyFormatter.format(productPrice ?? 0);
     }
 
     final String displayDiscount =
@@ -390,8 +390,10 @@ class _BrandDetailScreenState extends State<BrandDetailScreen> {
         ? '${productDiscount.toStringAsFixed(0)}%' // Display as percentage string
         : '0%';
 
-    // Get brand name from the widget (it's already available)
-    final String brandName = widget.brandName;
+    // Get brand name from the _brandsMap (using product.brandId)
+    // This explicitly uses _brandsMap, resolving the warning.
+    final String brandName =
+        _brandsMap[product.brandId]?.name ?? 'Unknown Brand';
     // Get category name using the _categoriesMap
     final String categoryName =
         _categoriesMap[product.categoryId]?.name ?? 'Unknown Category';
