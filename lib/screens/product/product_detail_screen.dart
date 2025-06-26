@@ -798,7 +798,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
           IconButton(
             iconSize: 24,
             padding: const EdgeInsets.all(10),
-            icon: const Icon(Icons.remove, color: Colors.black),
+            icon: Icon(
+              Icons.remove,
+              color: canDecrement ? Colors.black : Colors.grey,
+            ), // Conditional color
             onPressed: canDecrement
                 ? () {
                     setState(() {
@@ -818,7 +821,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
           IconButton(
             iconSize: 24,
             padding: const EdgeInsets.all(10),
-            icon: const Icon(Icons.add, color: Colors.black),
+            icon: Icon(
+              Icons.add,
+              color: canIncrement ? Colors.black : Colors.grey,
+            ), // Conditional color
             onPressed: canIncrement
                 ? () {
                     setState(() {

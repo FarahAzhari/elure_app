@@ -3,6 +3,7 @@ import 'package:elure_app/screens/cart/checkout_screen.dart'; // Import the new 
 import 'package:elure_app/services/api_service.dart';
 import 'package:elure_app/services/local_storage_service.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart'; // Import for currency formatting
 
 class CartScreen extends StatefulWidget {
   const CartScreen({super.key});
@@ -13,12 +14,21 @@ class CartScreen extends StatefulWidget {
 
 class _CartScreenState extends State<CartScreen> {
   static const Color primaryPink = Color(0xFFE91E63);
+  static const String _baseUrl =
+      'https://apptoko.mobileprojp.com/public/'; // Base URL for images
 
   final ApiService _apiService = ApiService();
   final LocalStorageService _localStorageService = LocalStorageService();
 
   User? _currentUser;
   late Future<CartListResponse> _cartItemsFuture;
+
+  // Initialize NumberFormat for Rupiah (IDR) with dot as thousands separator
+  final NumberFormat _currencyFormatter = NumberFormat.currency(
+    locale: 'id_ID', // Indonesian locale
+    symbol: 'Rp', // Rupiah symbol
+    decimalDigits: 0, // No decimal digits for whole rupiah
+  );
 
   @override
   void initState() {
@@ -68,27 +78,39 @@ class _CartScreenState extends State<CartScreen> {
 
       // Fetch cart items
       final CartListResponse cartResponse = await _apiService.getCartItems();
+      // FIX: Removed .toJson() call on CartItem as it's not defined for CartItem model
+      print('DEBUG: Raw Cart Response Data: ${cartResponse.data?.toList()}');
 
-      // Fetch all products to get their stock information
+      // Fetch all products to get their stock and image information
       final ProductListResponse productListResponse = await _apiService
           .getProducts();
       final Map<int, Product> productsMap = {
         for (var product in productListResponse.data ?? [])
           product.id!: product,
       };
+      print(
+        'DEBUG: Fetched Products Map: ${productsMap.map((key, value) => MapEntry(key, value.toJson()))}',
+      );
 
-      // Enrich cart items with stock information
+      // Enrich cart items with stock, image, and discount information
       final List<CartItem> enrichedCartItems = [];
       for (var item in cartResponse.data ?? []) {
         if (item.product?.id != null) {
           final Product? fullProduct = productsMap[item.product!.id!];
           if (fullProduct != null) {
-            // Create a new CartProduct with stock information
+            // Create a new CartProduct with stock, image, and discount information
             final CartProduct enrichedCartProduct = CartProduct(
               id: item.product!.id,
               name: item.product!.name,
               price: item.product!.price,
               stock: fullProduct.stock, // Use stock from full product details
+              imageUrl:
+                  fullProduct.images != null && fullProduct.images!.isNotEmpty
+                  ? fullProduct
+                        .images!
+                        .first // Get the first image URL
+                  : null,
+              discount: fullProduct.discount, // Pass the discount
             );
             // Add the enriched CartItem to the list
             enrichedCartItems.add(
@@ -98,6 +120,25 @@ class _CartScreenState extends State<CartScreen> {
                 quantity: item.quantity,
                 subtotal: item.subtotal,
               ),
+            );
+            print('DEBUG: Enriched Cart Item for ${fullProduct.name}:');
+            print('  Product ID: ${enrichedCartProduct.id}');
+            print('  Original Price: ${enrichedCartProduct.price}');
+            print('  Discount: ${enrichedCartProduct.discount}');
+            print('  Image URL: ${enrichedCartProduct.imageUrl}');
+          } else {
+            // If product details are not found, keep the item but indicate no stock and no image
+            enrichedCartItems.add(
+              CartItem(
+                id: item.id,
+                product: item
+                    .product, // Keep original product data (will have null stock/imageUrl/discount)
+                quantity: item.quantity,
+                subtotal: item.subtotal,
+              ),
+            );
+            print(
+              'DEBUG: Product details not found for cart item ID: ${item.id}. Product name: ${item.product?.name}',
             );
           }
         }
@@ -122,10 +163,13 @@ class _CartScreenState extends State<CartScreen> {
   }
 
   // Refreshes the cart items by re-calling _loadCartDataFuture and updating state
-  void _refreshCart() {
+  Future<void> _refreshCart() async {
+    // This method is now async to be used with RefreshIndicator
     setState(() {
       _cartItemsFuture = _loadCartDataFuture();
     });
+    // Await the future so RefreshIndicator knows when the refresh is complete
+    await _cartItemsFuture;
   }
 
   // Handles checkout process
@@ -151,7 +195,7 @@ class _CartScreenState extends State<CartScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Checkout successful! Total: \$${checkoutResponse.data!.total!.toStringAsFixed(2)}',
+              'Checkout successful! Total: ${_currencyFormatter.format(checkoutResponse.data!.total!)}',
             ),
           ),
         );
@@ -163,7 +207,7 @@ class _CartScreenState extends State<CartScreen> {
 
       _refreshCart(); // Refresh cart to show it's empty after checkout
 
-      // Navigate to CheckoutScreen after successful checkout, passing the CheckoutData
+      // Navigate to CheckoutScreen after successful addition
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -179,9 +223,11 @@ class _CartScreenState extends State<CartScreen> {
       ).showSnackBar(SnackBar(content: Text('Checkout failed: ${e.message}')));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error during checkout: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('An unexpected error occurred: ${e.toString()}'),
+        ),
+      );
     }
   }
 
@@ -211,9 +257,11 @@ class _CartScreenState extends State<CartScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error removing item: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('An unexpected error occurred: ${e.toString()}'),
+        ),
+      );
     }
   }
 
@@ -233,169 +281,174 @@ class _CartScreenState extends State<CartScreen> {
           ),
           const SizedBox(height: 10),
           Expanded(
-            child: FutureBuilder<CartListResponse>(
-              future: _cartItemsFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(color: primaryPink),
-                  );
-                } else if (snapshot.hasError) {
-                  // Display specific error for not logged in, or general error
-                  return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            // Cast error to Exception and use its message if available, otherwise default
-                            (snapshot.error is Exception)
-                                ? (snapshot.error as Exception)
-                                      .toString()
-                                      .replaceFirst('Exception: ', '')
-                                : snapshot.error.toString(),
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: Colors.red,
-                              fontSize: 16,
+            child: RefreshIndicator(
+              // Added RefreshIndicator here
+              onRefresh: _refreshCart, // Calls the refresh method
+              color: primaryPink, // Customize refresh indicator color
+              child: FutureBuilder<CartListResponse>(
+                future: _cartItemsFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(
+                      child: CircularProgressIndicator(color: primaryPink),
+                    );
+                  } else if (snapshot.hasError) {
+                    // Display specific error for not logged in, or general error
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              // Cast error to Exception and use its message if available, otherwise default
+                              (snapshot.error is Exception)
+                                  ? (snapshot.error as Exception)
+                                        .toString()
+                                        .replaceFirst('Exception: ', '')
+                                  : snapshot.error.toString(),
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Colors.red,
+                                fontSize: 16,
+                              ),
                             ),
-                          ),
-                          // The `_currentUser?.id == null` check is sufficient.
-                          if (_currentUser?.id == null) // Simplified condition
-                            const Text(
-                              'Please navigate to the login/signup screen to proceed.',
+                            // The `_currentUser?.id == null` check is sufficient.
+                            if (_currentUser?.id ==
+                                null) // Simplified condition
+                              const Text(
+                                'Please navigate to the login/signup screen to proceed.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.grey,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            const SizedBox(height: 20),
+                            ElevatedButton(
+                              onPressed:
+                                  _refreshCart, // Re-initialize (fetch user + cart)
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: primaryPink,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(25),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 30,
+                                  vertical: 12,
+                                ),
+                              ),
+                              child: const Text(
+                                'Retry / Refresh',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  } else if (snapshot.hasData) {
+                    // `snapshot.data` is non-null here because `snapshot.hasData` is true.
+                    // `snapshot.data.data` can still be null, so null-aware access is needed.
+                    List<CartItem>? fetchedCartItems = snapshot.data!.data;
+
+                    if (fetchedCartItems == null || fetchedCartItems.isEmpty) {
+                      return const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.shopping_cart_outlined,
+                              size: 80,
+                              color: Colors.grey,
+                            ),
+                            SizedBox(height: 20),
+                            Text(
+                              'Your cart is empty!',
+                              style: TextStyle(
+                                fontSize: 20,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    // --- Consolidate duplicate products ---
+                    final Map<int, CartItem> consolidatedItems = {};
+                    for (var item in fetchedCartItems) {
+                      if (item.product?.id != null) {
+                        final int productId = item.product!.id!;
+                        if (consolidatedItems.containsKey(productId)) {
+                          // If product already exists, update its quantity
+                          final existingItem = consolidatedItems[productId]!;
+                          consolidatedItems[productId] = CartItem(
+                            id: existingItem
+                                .id, // Keep the original cart item ID
+                            product: existingItem.product,
+                            quantity:
+                                (existingItem.quantity ?? 0) +
+                                (item.quantity ?? 0),
+                            subtotal:
+                                (existingItem.subtotal ?? 0) +
+                                (item.subtotal ?? 0),
+                          );
+                        } else {
+                          // Add new item if not already in the map
+                          consolidatedItems[productId] = item;
+                        }
+                      }
+                    }
+                    final List<CartItem> displayCartItems = consolidatedItems
+                        .values
+                        .toList();
+                    // Sort by product name for consistent display
+                    displayCartItems.sort(
+                      (a, b) => (a.product?.name ?? '').compareTo(
+                        b.product?.name ?? '',
+                      ),
+                    );
+                    // --- End consolidation logic ---
+
+                    if (displayCartItems.isEmpty) {
+                      return const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.shopping_cart_outlined,
+                              size: 80,
+                              color: Colors.grey,
+                            ),
+                            SizedBox(height: 20),
+                            Text(
+                              'Your cart is empty!', // Simplified message
                               textAlign: TextAlign.center,
                               style: TextStyle(
+                                fontSize: 16,
                                 color: Colors.grey,
-                                fontSize: 14,
                               ),
                             ),
-                          const SizedBox(height: 20),
-                          ElevatedButton(
-                            onPressed:
-                                _refreshCart, // Re-initialize (fetch user + cart)
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: primaryPink,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(25),
-                              ),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 30,
-                                vertical: 12,
-                              ),
-                            ),
-                            child: const Text(
-                              'Retry / Refresh',
-                              style: TextStyle(color: Colors.white),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                } else if (snapshot.hasData) {
-                  // `snapshot.data` is non-null here because `snapshot.hasData` is true.
-                  // `snapshot.data.data` can still be null, so null-aware access is needed.
-                  List<CartItem>? fetchedCartItems = snapshot.data!.data;
-
-                  if (fetchedCartItems == null || fetchedCartItems.isEmpty) {
-                    return const Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.shopping_cart_outlined,
-                            size: 80,
-                            color: Colors.grey,
-                          ),
-                          SizedBox(height: 20),
-                          Text(
-                            'Your cart is empty!',
-                            style: TextStyle(fontSize: 20, color: Colors.grey),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-
-                  // --- Filter out items with 0 stock and consolidate duplicate products ---
-                  final Map<int, CartItem> consolidatedItems = {};
-                  for (var item in fetchedCartItems) {
-                    // Only process items that have a product and stock > 0
-                    if (item.product?.id != null &&
-                        (item.product?.stock ?? 0) > 0) {
-                      final int productId = item.product!.id!;
-                      if (consolidatedItems.containsKey(productId)) {
-                        // If product already exists, update its quantity
-                        final existingItem = consolidatedItems[productId]!;
-                        consolidatedItems[productId] = CartItem(
-                          id: existingItem.id, // Keep the original cart item ID
-                          product: existingItem.product,
-                          quantity:
-                              (existingItem.quantity ?? 0) +
-                              (item.quantity ?? 0),
-                          subtotal:
-                              (existingItem.subtotal ?? 0) +
-                              (item.subtotal ?? 0),
-                        );
-                      } else {
-                        // Add new item if not already in the map
-                        consolidatedItems[productId] = item;
-                      }
-                    } else if (item.product?.id != null &&
-                        (item.product?.stock ?? 0) <= 0) {
-                      // If stock is 0 or less, attempt to delete the item from the backend
-                      // This is an optional behavior. You might instead just display it as "out of stock"
-                      // without automatically deleting. For now, we'll keep the auto-delete for zero stock.
-                      _deleteCartItem(item.id!);
+                          ],
+                        ),
+                      );
                     }
-                  }
-                  final List<CartItem> displayCartItems = consolidatedItems
-                      .values
-                      .toList();
-                  // Sort by product name for consistent display
-                  displayCartItems.sort(
-                    (a, b) => (a.product?.name ?? '').compareTo(
-                      b.product?.name ?? '',
-                    ),
-                  );
-                  // --- End filtering and consolidation logic ---
 
-                  if (displayCartItems.isEmpty) {
-                    return const Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.shopping_cart_outlined,
-                            size: 80,
-                            color: Colors.grey,
-                          ),
-                          SizedBox(height: 20),
-                          Text(
-                            'Your cart is empty (all available items are out of stock)!',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(fontSize: 16, color: Colors.grey),
-                          ),
-                        ],
-                      ),
+                    return ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      itemCount:
+                          displayCartItems.length, // Use the consolidated list
+                      itemBuilder: (context, index) {
+                        final item = displayCartItems[index];
+                        return _buildCartItemCard(item, index);
+                      },
                     );
+                  } else {
+                    return const Center(child: Text('No cart data available.'));
                   }
-
-                  return ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    itemCount:
-                        displayCartItems.length, // Use the consolidated list
-                    itemBuilder: (context, index) {
-                      final item = displayCartItems[index];
-                      return _buildCartItemCard(item, index);
-                    },
-                  );
-                } else {
-                  return const Center(child: Text('No cart data available.'));
-                }
-              },
+                },
+              ),
             ),
           ),
           // Pass the calculated total price to _buildBottomSummary
@@ -408,53 +461,43 @@ class _CartScreenState extends State<CartScreen> {
               // `snapshot.data` is non-null here because `snapshot.hasData` is true.
               // `snapshot.data.data` can still be null, so null-aware access is needed.
               if (snapshot.hasData && snapshot.data!.data != null) {
-                // Re-calculate total based on the original fetched data before consolidation
-                // to match the API's actual sum if consolidation is only for display.
-                // If the API consolidates, then `snapshot.data!.data!` would already be consolidated.
-                // Assuming API returns individual items, so iterate raw fetched items for true total.
-
-                // Filter out items with 0 stock before calculating total and item count
-                final List<CartItem> availableItems = snapshot.data!.data!
-                    .where((item) => (item.product?.stock ?? 0) > 0)
-                    .toList();
-
-                for (var item in availableItems) {
-                  if (item.product?.price != null && item.quantity != null) {
-                    currentTotal += (item.product!.price! * item.quantity!);
-                  }
-                }
-
-                // For itemCount, you would apply the consolidation logic here as well before counting.
+                // Calculate total and item count from all fetched items (no stock filtering here)
                 final Map<int, CartItem> tempConsolidatedItems = {};
-                if (availableItems.isNotEmpty) {
-                  for (var item in availableItems) {
-                    if (item.product?.id != null) {
-                      final int productId = item.product!.id!;
-                      if (tempConsolidatedItems.containsKey(productId)) {
-                        tempConsolidatedItems[productId] = CartItem(
-                          id: tempConsolidatedItems[productId]!.id,
-                          product: tempConsolidatedItems[productId]!.product,
-                          quantity:
-                              (tempConsolidatedItems[productId]!.quantity ??
-                                  0) +
-                              (item.quantity ?? 0),
-                          subtotal:
-                              (tempConsolidatedItems[productId]!.subtotal ??
-                                  0) +
-                              (item.subtotal ?? 0),
-                        );
-                      } else {
-                        tempConsolidatedItems[productId] = item;
-                      }
+                for (var item in snapshot.data!.data!) {
+                  if (item.product?.id != null) {
+                    final int productId = item.product!.id!;
+                    if (tempConsolidatedItems.containsKey(productId)) {
+                      tempConsolidatedItems[productId] = CartItem(
+                        id: tempConsolidatedItems[productId]!.id,
+                        product: tempConsolidatedItems[productId]!.product,
+                        quantity:
+                            (tempConsolidatedItems[productId]!.quantity ?? 0) +
+                            (item.quantity ?? 0),
+                        subtotal:
+                            (tempConsolidatedItems[productId]!.subtotal ?? 0) +
+                            (item.subtotal ?? 0),
+                      );
+                    } else {
+                      tempConsolidatedItems[productId] = item;
                     }
                   }
                 }
-                itemCount = tempConsolidatedItems
-                    .values
-                    .length; // Count of unique items with stock > 0
-                isCartEmpty = tempConsolidatedItems
-                    .values
-                    .isEmpty; // Check if unique items list is empty after filtering
+
+                for (var item in tempConsolidatedItems.values) {
+                  if (item.product?.price != null && item.quantity != null) {
+                    // Apply discount when calculating total
+                    double itemPrice = item.product!.price!.toDouble();
+                    if (item.product?.discount != null &&
+                        item.product!.discount! > 0) {
+                      itemPrice =
+                          itemPrice * (1 - (item.product!.discount! / 100));
+                    }
+                    currentTotal += (itemPrice * item.quantity!);
+                  }
+                }
+
+                itemCount = tempConsolidatedItems.values.length;
+                isCartEmpty = tempConsolidatedItems.values.isEmpty;
               }
 
               return _buildBottomSummary(currentTotal, isCartEmpty, itemCount);
@@ -532,17 +575,41 @@ class _CartScreenState extends State<CartScreen> {
   Widget _buildCartItemCard(CartItem item, int index) {
     // Ensure product and its properties are not null before accessing
     final productName = item.product?.name ?? 'Unknown Product';
-    final productPrice = item.product?.price ?? 0;
+    final int originalPriceInt = item.product?.price ?? 0;
+    final int? discount = item.product?.discount; // Discount is int
+
+    // Calculate prices
+    double priceAfterDiscount = originalPriceInt.toDouble();
+    if (discount != null && discount > 0) {
+      priceAfterDiscount = originalPriceInt * (1 - (discount / 100));
+    }
+
     final int currentQuantity = item.quantity ?? 0; // Get current quantity
     final int availableStock = item.product?.stock ?? 0; // Get available stock
 
-    // --- Using Dummy Data for missing API fields as requested ---
-    // These will be used if the corresponding fields are NOT available in your CartProduct model
-    final imageUrl =
-        'https://placehold.co/80x80/FFC0CB/000000?text=Product'; // Dummy image URL
-    final productBrand = 'Dummy Brand'; // Dummy brand name
-    final double? productOriginalPrice =
-        null; // No original price from API, so keep it null for conditional rendering
+    // Determine the image URL for display
+    // FIX: Check if imageUrl already contains 'http' or 'https' to avoid double-prefixing
+    String? rawImageUrl = item.product?.imageUrl;
+    String imageUrlToDisplay;
+
+    if (rawImageUrl != null && rawImageUrl.isNotEmpty) {
+      if (rawImageUrl.startsWith('http://') ||
+          rawImageUrl.startsWith('https://')) {
+        imageUrlToDisplay = rawImageUrl; // Already a full URL
+      } else {
+        imageUrlToDisplay =
+            '$_baseUrl$rawImageUrl'; // Prepend base URL for relative paths
+      }
+    } else {
+      imageUrlToDisplay =
+          'https://placehold.co/80x80/FFC0CB/000000?text=Product'; // Fallback placeholder
+    }
+
+    print('DEBUG in _buildCartItemCard for $productName:');
+    print('  Image URL to Display: $imageUrlToDisplay');
+    print('  Original Price: $originalPriceInt');
+    print('  Discount: $discount');
+    print('  Price After Discount: $priceAfterDiscount');
 
     return Container(
       margin: const EdgeInsets.only(bottom: 15), // Space between cards
@@ -569,12 +636,17 @@ class _CartScreenState extends State<CartScreen> {
               // Clip to apply border radius
               borderRadius: BorderRadius.circular(15),
               child: Image.network(
-                imageUrl,
+                imageUrlToDisplay, // Use the determined image URL
                 fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => Container(
-                  color: Colors.grey[200],
-                  child: const Center(child: Icon(Icons.broken_image)),
-                ),
+                errorBuilder: (context, error, stackTrace) {
+                  print(
+                    'ERROR: Image loading failed for $productName. URL: $imageUrlToDisplay. Error: $error',
+                  );
+                  return Container(
+                    color: Colors.grey[200],
+                    child: const Center(child: Icon(Icons.broken_image)),
+                  );
+                },
               ),
             ),
           ),
@@ -594,40 +666,53 @@ class _CartScreenState extends State<CartScreen> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 5),
-                // Item Brand (always show a brand, even if dummy)
-                Text(
-                  productBrand,
-                  style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                ),
+                // Removed the Brand Text widget here as requested
                 const SizedBox(height: 10),
                 // Price and Quantity Selector
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment:
+                      CrossAxisAlignment.baseline, // Align text baselines
+                  textBaseline: TextBaseline
+                      .alphabetic, // Required for baseline alignment
                   children: [
                     // Prices
-                    Row(
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Original price - only show if available and greater than current price
-                        if (productOriginalPrice != null &&
-                            productOriginalPrice > productPrice)
+                        if (discount != null && discount > 0) ...[
                           Text(
-                            '\$${productOriginalPrice.toStringAsFixed(0)}',
+                            _currencyFormatter.format(originalPriceInt),
                             style: TextStyle(
                               fontSize: 14,
                               color: Colors.grey[600],
                               decoration: TextDecoration.lineThrough,
                             ),
                           ),
-                        // Always show current price from fetched data
+                          const SizedBox(
+                            height: 4,
+                          ), // Space between original and discounted price
+                        ],
                         Text(
-                          '\$${productPrice.toStringAsFixed(0)}',
+                          _currencyFormatter.format(priceAfterDiscount),
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                             color: Colors.black,
                           ),
                         ),
+                        if (discount != null && discount > 0)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4.0),
+                            child: Text(
+                              '${discount.toInt()}% Off', // Display int discount
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.green[700],
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                     // Quantity Selector (local state only, no API update for quantity provided)
@@ -638,6 +723,19 @@ class _CartScreenState extends State<CartScreen> {
                     ),
                   ],
                 ),
+                // Display "Out of Stock" if stock is 0
+                if (availableStock == 0)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: Text(
+                      'Out of Stock',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.red[700],
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -675,6 +773,9 @@ class _CartScreenState extends State<CartScreen> {
     // Your provided API does not have an endpoint to update quantity for an existing cart item.
     // If you need this functionality, an.endpoint like PUT /api/cart/{cart_item_id}
     // with quantity in body would be required, and _apiService would need to be updated.
+    final bool canIncrement = currentQuantity < availableStock;
+    final bool canDecrement = currentQuantity > 1;
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.grey[200],
@@ -687,15 +788,22 @@ class _CartScreenState extends State<CartScreen> {
             iconSize: 20,
             constraints: const BoxConstraints(), // Remove default padding
             padding: const EdgeInsets.all(5),
-            icon: const Icon(Icons.remove, color: Colors.black),
-            onPressed: () {
-              // For now, this button has no effect on the backend.
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Quantity update not yet supported by API.'),
-                ),
-              );
-            },
+            icon: Icon(
+              Icons.remove,
+              color: canDecrement ? Colors.black : Colors.grey,
+            ), // Conditional color
+            onPressed: canDecrement
+                ? () {
+                    // Placeholder for future API integration
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Quantity update not yet supported by API.',
+                        ),
+                      ),
+                    );
+                  }
+                : null, // Disable if quantity is 1
           ),
           Text(
             currentQuantity.toString(), // Display current quantity
@@ -709,30 +817,22 @@ class _CartScreenState extends State<CartScreen> {
             iconSize: 20,
             constraints: const BoxConstraints(),
             padding: const EdgeInsets.all(5),
-            icon: const Icon(Icons.add, color: Colors.black),
-            onPressed: () {
-              // Check if current quantity is less than available stock before allowing increment
-              if (currentQuantity < availableStock) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Quantity update not yet supported by API.'),
-                  ),
-                );
-                // If you were to update the quantity locally and then call an API:
-                // setState(() {
-                //   item.quantity = currentQuantity + 1; // This would require `item.quantity` to be non-final
-                // });
-                // _apiService.updateCartItemQuantity(item.id!, currentQuantity + 1); // Hypothetical API call
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'Maximum stock of $availableStock reached for this product.',
-                    ),
-                  ),
-                );
-              }
-            },
+            icon: Icon(
+              Icons.add,
+              color: canIncrement ? Colors.black : Colors.grey,
+            ), // Conditional color
+            onPressed: canIncrement
+                ? () {
+                    // Placeholder for future API integration
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Quantity update not yet supported by API.',
+                        ),
+                      ),
+                    );
+                  }
+                : null, // Disable if at max stock
           ),
         ],
       ),
@@ -791,7 +891,9 @@ class _CartScreenState extends State<CartScreen> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  '\$${totalCartPrice.toStringAsFixed(2)} USD', // Use actual total price
+                  _currencyFormatter.format(
+                    totalCartPrice,
+                  ), // Use formatted price
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
