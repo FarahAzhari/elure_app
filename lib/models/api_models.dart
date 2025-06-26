@@ -10,6 +10,17 @@ int? _parseIntSafely(dynamic value) {
   return null; // Return null for unsupported types
 }
 
+// Helper to safely parse dynamic values to double?
+double? _parseDoubleSafely(dynamic value) {
+  if (value == null) return null;
+  if (value is double) return value;
+  if (value is int) return value.toDouble();
+  if (value is String) {
+    return double.tryParse(value);
+  }
+  return null;
+}
+
 // --- Generic Response Wrapper ---
 // A general structure for API responses that contain a message and optional data.
 class ApiResponse<T> {
@@ -34,9 +45,27 @@ class ApiResponse<T> {
 class ErrorDetail {
   final List<String>? email;
   final List<String>? password;
-  // Add other fields here if different error types appear (e.g., 'name', 'product_id')
+  final List<String>? name; // Added for Brand/Category name validation
+  final List<String>? description; // Added for Product description
+  final List<String>? price; // Added for Product price
+  final List<String>? stock; // Added for Product stock
+  final List<String>? categoryId; // Added for Product category_id
+  final List<String>? brandId; // Added for Product brand_id
+  final List<String>? discount; // Added for Product discount
+  final List<String>? images; // Added for Product images
 
-  ErrorDetail({this.email, this.password});
+  ErrorDetail({
+    this.email,
+    this.password,
+    this.name,
+    this.description,
+    this.price,
+    this.stock,
+    this.categoryId,
+    this.brandId,
+    this.discount,
+    this.images,
+  });
 
   factory ErrorDetail.fromJson(Map<String, dynamic> json) {
     return ErrorDetail(
@@ -46,11 +75,46 @@ class ErrorDetail {
       password: json['password'] != null
           ? List<String>.from(json['password'].map((x) => x))
           : null,
+      name: json['name'] != null
+          ? List<String>.from(json['name'].map((x) => x))
+          : null,
+      description: json['description'] != null
+          ? List<String>.from(json['description'].map((x) => x))
+          : null,
+      price: json['price'] != null
+          ? List<String>.from(json['price'].map((x) => x))
+          : null,
+      stock: json['stock'] != null
+          ? List<String>.from(json['stock'].map((x) => x))
+          : null,
+      categoryId: json['category_id'] != null
+          ? List<String>.from(json['category_id'].map((x) => x))
+          : null,
+      brandId: json['brand_id'] != null
+          ? List<String>.from(json['brand_id'].map((x) => x))
+          : null,
+      discount: json['discount'] != null
+          ? List<String>.from(json['discount'].map((x) => x))
+          : null,
+      images: json['images'] != null
+          ? List<String>.from(json['images'].map((x) => x))
+          : null,
     );
   }
 
   Map<String, dynamic> toJson() {
-    return {'email': email, 'password': password};
+    return {
+      'email': email,
+      'password': password,
+      'name': name,
+      'description': description,
+      'price': price,
+      'stock': stock,
+      'category_id': categoryId,
+      'brand_id': brandId,
+      'discount': discount,
+      'images': images,
+    };
   }
 }
 
@@ -148,6 +212,150 @@ class AuthResponse {
   }
 }
 
+// --- Brand Models ---
+class Brand {
+  final int? id;
+  final String? name;
+  final String? createdAt;
+  final String? updatedAt;
+
+  Brand({this.id, this.name, this.createdAt, this.updatedAt});
+
+  factory Brand.fromJson(Map<String, dynamic> json) {
+    return Brand(
+      id: _parseIntSafely(json['id']),
+      name: json['name'],
+      createdAt: json['created_at'],
+      updatedAt: json['updated_at'],
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'created_at': createdAt,
+      'updated_at': updatedAt,
+    };
+  }
+}
+
+class BrandListResponse {
+  final String message;
+  final List<Brand>? data;
+
+  BrandListResponse({required this.message, this.data});
+
+  factory BrandListResponse.fromJson(Map<String, dynamic> json) {
+    return BrandListResponse(
+      message: json['message'],
+      data: json['data'] != null
+          ? List<Brand>.from(json['data'].map((x) => Brand.fromJson(x)))
+          : null,
+    );
+  }
+}
+
+class BrandAddResponse {
+  final String message;
+  final Brand? data;
+
+  BrandAddResponse({required this.message, this.data});
+
+  factory BrandAddResponse.fromJson(Map<String, dynamic> json) {
+    return BrandAddResponse(
+      message: json['message'],
+      data: json['data'] != null ? Brand.fromJson(json['data']) : null,
+    );
+  }
+}
+
+class BrandUpdateResponse {
+  final String message;
+  final Brand? data;
+
+  BrandUpdateResponse({required this.message, this.data});
+
+  factory BrandUpdateResponse.fromJson(Map<String, dynamic> json) {
+    return BrandUpdateResponse(
+      message: json['message'],
+      data: json['data'] != null ? Brand.fromJson(json['data']) : null,
+    );
+  }
+}
+
+// --- Category Models ---
+class Category {
+  final int? id;
+  final String? name;
+  final String? createdAt;
+  final String? updatedAt;
+
+  Category({this.id, this.name, this.createdAt, this.updatedAt});
+
+  factory Category.fromJson(Map<String, dynamic> json) {
+    return Category(
+      id: _parseIntSafely(json['id']),
+      name: json['name'],
+      createdAt: json['created_at'],
+      updatedAt: json['updated_at'],
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'created_at': createdAt,
+      'updated_at': updatedAt,
+    };
+  }
+}
+
+class CategoryListResponse {
+  final String message;
+  final List<Category>? data;
+
+  CategoryListResponse({required this.message, this.data});
+
+  factory CategoryListResponse.fromJson(Map<String, dynamic> json) {
+    return CategoryListResponse(
+      message: json['message'],
+      data: json['data'] != null
+          ? List<Category>.from(json['data'].map((x) => Category.fromJson(x)))
+          : null,
+    );
+  }
+}
+
+class CategoryAddResponse {
+  final String message;
+  final Category? data;
+
+  CategoryAddResponse({required this.message, this.data});
+
+  factory CategoryAddResponse.fromJson(Map<String, dynamic> json) {
+    return CategoryAddResponse(
+      message: json['message'],
+      data: json['data'] != null ? Category.fromJson(json['data']) : null,
+    );
+  }
+}
+
+class CategoryUpdateResponse {
+  final String message;
+  final Category? data;
+
+  CategoryUpdateResponse({required this.message, this.data});
+
+  factory CategoryUpdateResponse.fromJson(Map<String, dynamic> json) {
+    return CategoryUpdateResponse(
+      message: json['message'],
+      data: json['data'] != null ? Category.fromJson(json['data']) : null,
+    );
+  }
+}
+
 // --- Product Models ---
 // Represents a single product.
 class Product {
@@ -156,6 +364,11 @@ class Product {
   final String? description;
   final int? price;
   final int? stock;
+  final int? categoryId; // New field
+  final int? brandId; // New field
+  final double? discount; // New field, assuming percentage
+  final List<String>?
+  images; // New field, list of image URLs (base64 or actual URLs)
   final String? createdAt;
   final String? updatedAt;
 
@@ -165,6 +378,10 @@ class Product {
     this.description,
     this.price,
     this.stock,
+    this.categoryId,
+    this.brandId,
+    this.discount,
+    this.images,
     this.createdAt,
     this.updatedAt,
   });
@@ -176,6 +393,12 @@ class Product {
       description: json['description'],
       price: _parseIntSafely(json['price']), // Use safe parsing
       stock: _parseIntSafely(json['stock']), // Use safe parsing
+      categoryId: _parseIntSafely(json['category_id']), // Parse new field
+      brandId: _parseIntSafely(json['brand_id']), // Parse new field
+      discount: _parseDoubleSafely(json['discount']), // Parse new field
+      images: json['images'] != null
+          ? List<String>.from(json['images'].map((x) => x.toString()))
+          : null, // Parse new field
       createdAt: json['created_at'],
       updatedAt: json['updated_at'],
     );
@@ -188,6 +411,10 @@ class Product {
       'description': description,
       'price': price,
       'stock': stock,
+      'category_id': categoryId,
+      'brand_id': brandId,
+      'discount': discount,
+      'images': images,
       'created_at': createdAt,
       'updated_at': updatedAt,
     };
@@ -220,6 +447,20 @@ class ProductAddResponse {
 
   factory ProductAddResponse.fromJson(Map<String, dynamic> json) {
     return ProductAddResponse(
+      message: json['message'],
+      data: json['data'] != null ? Product.fromJson(json['data']) : null,
+    );
+  }
+}
+
+class ProductUpdateResponse {
+  final String message;
+  final Product? data;
+
+  ProductUpdateResponse({required this.message, this.data});
+
+  factory ProductUpdateResponse.fromJson(Map<String, dynamic> json) {
+    return ProductUpdateResponse(
       message: json['message'],
       data: json['data'] != null ? Product.fromJson(json['data']) : null,
     );
@@ -409,5 +650,60 @@ class MessageResponse {
 
   factory MessageResponse.fromJson(Map<String, dynamic> json) {
     return MessageResponse(message: json['message'], data: json['data']);
+  }
+}
+
+// --- Transaction History Models ---
+// Assuming a structure for history items, if they were to be returned.
+// Currently, Postman shows an empty 'data' field for GET Riwayat Belanja.
+// This is a placeholder for future expansion if the API changes.
+class HistoryItem {
+  final int? id;
+  final int? userId;
+  final List<CheckoutItem>? items; // Reusing CheckoutItem
+  final int? total;
+  final String? createdAt;
+  final String? updatedAt;
+
+  HistoryItem({
+    this.id,
+    this.userId,
+    this.items,
+    this.total,
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  factory HistoryItem.fromJson(Map<String, dynamic> json) {
+    return HistoryItem(
+      id: _parseIntSafely(json['id']),
+      userId: _parseIntSafely(json['user_id']),
+      items: json['items'] != null
+          ? List<CheckoutItem>.from(
+              json['items'].map((x) => CheckoutItem.fromJson(x)),
+            )
+          : null,
+      total: _parseIntSafely(json['total']),
+      createdAt: json['created_at'],
+      updatedAt: json['updated_at'],
+    );
+  }
+}
+
+class HistoryListResponse {
+  final String message;
+  final List<HistoryItem>? data;
+
+  HistoryListResponse({required this.message, this.data});
+
+  factory HistoryListResponse.fromJson(Map<String, dynamic> json) {
+    return HistoryListResponse(
+      message: json['message'],
+      data: json['data'] != null
+          ? List<HistoryItem>.from(
+              json['data'].map((x) => HistoryItem.fromJson(x)),
+            )
+          : null,
+    );
   }
 }
