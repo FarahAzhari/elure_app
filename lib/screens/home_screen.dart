@@ -1,11 +1,11 @@
-import 'package:elure_app/models/api_models.dart'; // Import API models
+import 'package:elure_app/models/api_models.dart';
+import 'package:elure_app/screens/cart/cart_screen.dart'; // Import CartScreen
 import 'package:elure_app/screens/product/product_detail_screen.dart'; // Import ProductDetailScreen
-import 'package:elure_app/services/api_service.dart'; // Import ApiService
-import 'package:elure_app/services/local_storage_service.dart'; // Import LocalStorageService
+import 'package:elure_app/services/api_service.dart';
+import 'package:elure_app/services/local_storage_service.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart'; // Import for currency formatting
 
-// HomeScreen now represents the content of the "Home" tab.
-// It no longer manages the BottomNavigationBar.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -14,28 +14,21 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // Define the primary pink color for consistency, as observed in your designs.
   static const Color primaryPink = Color(0xFFE91E63);
   static const String _baseUrl =
       'https://apptoko.mobileprojp.com/public/'; // Base URL for images
 
-  // Instances of services
   final ApiService _apiService = ApiService();
   final LocalStorageService _localStorageService = LocalStorageService();
 
-  // State variables for data
-  User? _loggedInUser;
-  List<Product> _products =
-      []; // Renamed from _bestSellerProducts for broader use
-  List<Category> _categories = [];
-  List<Brand> _brands = [];
+  List<Product> _products = [];
+  Map<int, Brand> _brandsMap = {}; // To map brand IDs to brand names
+  Map<int, Category> _categoriesMap =
+      {}; // To map category IDs to category names
 
-  // Maps for quick lookup of brand names by ID (needed for ProductDetailScreen)
-  Map<int, Brand> _brandsMap = {};
-
-  // Loading and error states
   bool _isLoading = true; // Overall loading state
   String? _errorMessage; // Overall error message
+  User? _loggedInUser; // To store current user data
 
   @override
   void initState() {
@@ -56,12 +49,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
       // 2. Fetch brands first (as products might depend on brand names)
       final brandResponse = await _apiService.getBrands();
-      _brands = brandResponse.data ?? [];
-      _brandsMap = {for (var b in _brands) b.id!: b};
+      _brandsMap = {for (var b in brandResponse.data ?? []) b.id!: b};
 
       // 3. Fetch categories
       final categoryResponse = await _apiService.getCategories();
-      _categories = categoryResponse.data ?? [];
+      _categoriesMap = {for (var c in categoryResponse.data ?? []) c.id!: c};
 
       // 4. Fetch products (assuming these are your "Best Sellers")
       final productResponse = await _apiService.getProducts();
@@ -89,6 +81,60 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _handleAddToCart(Product product) async {
+    if (_loggedInUser?.id == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please log in to add items to cart.')),
+      );
+      return;
+    }
+
+    if (product.id == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error: Product ID is invalid.')),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Adding to cart...')));
+
+    try {
+      final CartAddResponse response = await _apiService.addToCart(
+        product.id!,
+        1, // Always add 1 from the home screen quick add button
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(response.message)));
+        // Optionally, navigate to cart screen after adding
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const CartScreen()),
+        );
+      }
+    } on ErrorResponse catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to add to cart: ${e.message}')),
+        );
+        print('Add to Cart Error: ${e.message}');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('An unexpected error occurred: ${e.toString()}'),
+          ),
+        );
+        print('Unexpected Add to Cart Error: $e');
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -103,7 +149,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.error_outline, color: Colors.red, size: 60),
+                    const Icon(
+                      Icons.error_outline,
+                      color: Colors.red,
+                      size: 60,
+                    ),
                     const SizedBox(height: 20),
                     Text(
                       _errorMessage!,
@@ -307,7 +357,9 @@ class _HomeScreenState extends State<HomeScreen> {
   // Builds the horizontal list of filter tags (now dynamic for brands)
   Widget _buildFilterTags() {
     final List<String> tags = ['All Brands'];
-    tags.addAll(_brands.map((brand) => brand.name ?? 'Unknown Brand').toList());
+    tags.addAll(
+      _brandsMap.values.map((brand) => brand.name ?? 'Unknown Brand').toList(),
+    );
 
     // You might want to implement selection logic here to highlight a selected brand
     // For now, "All Brands" is hardcoded as selected for initial display
@@ -443,7 +495,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Builds the horizontal list of product categories (now dynamic)
   Widget _buildCategoriesList() {
-    if (_categories.isEmpty) {
+    if (_categoriesMap.isEmpty) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 10.0),
         child: Text(
@@ -456,9 +508,9 @@ class _HomeScreenState extends State<HomeScreen> {
       height: 100, // Fixed height for category items
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        itemCount: _categories.length,
+        itemCount: _categoriesMap.length,
         itemBuilder: (context, index) {
-          final category = _categories[index];
+          final category = _categoriesMap.values.elementAt(index);
           return Container(
             width: 80, // Fixed width for each category item
             margin: const EdgeInsets.only(right: 15),
@@ -469,7 +521,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   backgroundColor: primaryPink.withOpacity(
                     0.1,
                   ), // Light pink background for icon
-                  child: Icon(
+                  child: const Icon(
                     Icons.category,
                     color: primaryPink,
                   ), // Generic icon as no image in model
@@ -535,13 +587,19 @@ class _HomeScreenState extends State<HomeScreen> {
           'https://placehold.co/150x150/FF00FF/FFFFFF?text=${product.name?.substring(0, 1) ?? 'P'}';
     }
 
+    // Initialize NumberFormat for Rupiah (IDR) with dot as thousands separator
+    final NumberFormat currencyFormatter = NumberFormat.currency(
+      locale: 'id_ID', // Indonesian locale
+      symbol: 'Rp', // Rupiah symbol
+      decimalDigits: 0, // No decimal digits for whole rupiah
+    );
+
     // Calculate prices and discount display
     final double? productPrice = product.price?.toDouble();
-    final int? productDiscount =
-        product.discount; // This is the integer percentage (e.g., 10 for 10%)
+    final double? productDiscount = product.discount
+        ?.toDouble(); // Convert int? to double?
 
-    String displayOriginalPrice =
-        '\$${productPrice?.toStringAsFixed(0) ?? '0'}.00';
+    String displayOriginalPrice = currencyFormatter.format(productPrice ?? 0);
     String displayCurrentPrice;
 
     if (productPrice != null &&
@@ -549,9 +607,9 @@ class _HomeScreenState extends State<HomeScreen> {
         productDiscount > 0) {
       // Corrected: Divide productDiscount by 100 to get a decimal for calculation
       double discountedPrice = productPrice * (1 - (productDiscount / 100));
-      displayCurrentPrice = '\$${discountedPrice.toStringAsFixed(0)}.00';
+      displayCurrentPrice = currencyFormatter.format(discountedPrice);
     } else {
-      displayCurrentPrice = '\$${productPrice?.toStringAsFixed(0) ?? '0'}.00';
+      displayCurrentPrice = currencyFormatter.format(productPrice ?? 0);
     }
 
     final String displayDiscount =
@@ -659,6 +717,26 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                 ),
+                // Plus button
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: primaryPink, // Pink background for the button
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(15),
+                        bottomRight: Radius.circular(15),
+                      ),
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.add, color: Colors.white),
+                      onPressed: () => _handleAddToCart(product),
+                    ),
+                  ),
+                ),
               ],
             ),
             Padding(
@@ -696,7 +774,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       Text(
                         displayCurrentPrice, // Use current price (from API price)
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.bold,
                           color: primaryPink, // Pink for price

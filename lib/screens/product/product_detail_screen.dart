@@ -3,6 +3,7 @@ import 'package:elure_app/screens/cart/cart_screen.dart'; // Import CartScreen t
 import 'package:elure_app/services/api_service.dart'; // Import ApiService
 import 'package:elure_app/services/local_storage_service.dart'; // Import LocalStorageService
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart'; // Import for currency formatting
 
 class ProductDetailScreen extends StatefulWidget {
   final Product product; // Changed to accept Product object directly
@@ -362,8 +363,14 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
     // Corrected type and explicit conversion for productDiscount
     final double? productDiscount = widget.product.discount?.toDouble();
 
-    String displayOriginalPrice =
-        '\$${productPrice?.toStringAsFixed(0) ?? '0'}.00';
+    // Initialize NumberFormat for Rupiah (IDR) with dot as thousands separator
+    final NumberFormat currencyFormatter = NumberFormat.currency(
+      locale: 'id_ID', // Indonesian locale
+      symbol: 'Rp', // Rupiah symbol
+      decimalDigits: 0, // No decimal digits for whole rupiah
+    );
+
+    String displayOriginalPrice = currencyFormatter.format(productPrice ?? 0);
     String displayCurrentPrice;
 
     if (productPrice != null &&
@@ -371,9 +378,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen>
         productDiscount > 0) {
       // Assuming productDiscount is a whole number percentage (e.g., 10 for 10%), divide by 100
       double discountedPrice = productPrice * (1 - (productDiscount / 100));
-      displayCurrentPrice = '\$${discountedPrice.toStringAsFixed(0)}.00';
+      displayCurrentPrice = currencyFormatter.format(discountedPrice);
     } else {
-      displayCurrentPrice = '\$${productPrice?.toStringAsFixed(0) ?? '0'}.00';
+      displayCurrentPrice = currencyFormatter.format(productPrice ?? 0);
     }
 
     String displayDiscount = (productDiscount != null && productDiscount > 0)
