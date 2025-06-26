@@ -1,4 +1,6 @@
-import 'package:elure_app/screens/admin/manage_products_screen.dart';
+import 'package:elure_app/screens/admin/manage_brands_screen.dart'; // New import
+import 'package:elure_app/screens/admin/manage_categories_screen.dart'; // New import
+import 'package:elure_app/screens/admin/manage_products_screen.dart'; // Import the new screen
 import 'package:flutter/material.dart';
 
 class AdminDashboardScreen extends StatelessWidget {
@@ -52,10 +54,10 @@ class AdminDashboardScreen extends StatelessWidget {
                 style: TextStyle(fontSize: 16, color: Colors.grey),
               ),
               const SizedBox(height: 30),
+              // Manage Products Button
               ElevatedButton(
                 onPressed: () {
                   print('Manage Products clicked');
-                  // Navigate to the ManageProductsScreen
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -79,10 +81,64 @@ class AdminDashboardScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 15),
+              // Manage Categories Button (New)
+              ElevatedButton(
+                onPressed: () {
+                  print('Manage Categories clicked');
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const ManageCategoriesScreen(),
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryPink, // Consistent pink color
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 30,
+                    vertical: 15,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                ),
+                child: const Text(
+                  'Manage Categories',
+                  style: TextStyle(fontSize: 18, color: Colors.white),
+                ),
+              ),
+              const SizedBox(height: 15),
+              // Manage Brands Button (New)
+              ElevatedButton(
+                onPressed: () {
+                  print('Manage Brands clicked');
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const ManageBrandsScreen(),
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryPink, // Consistent pink color
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 30,
+                    vertical: 15,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                ),
+                child: const Text(
+                  'Manage Brands',
+                  style: TextStyle(fontSize: 18, color: Colors.white),
+                ),
+              ),
+              const SizedBox(height: 15),
+              // View Orders Button (Original)
               ElevatedButton(
                 onPressed: () {
                   print('View Orders clicked');
-                  // Implement navigation to an order management screen
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text(

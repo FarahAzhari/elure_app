@@ -1,20 +1,29 @@
-import 'package:elure_app/models/api_models.dart'; // Import API models for User and responses
+import 'package:elure_app/models/api_models.dart'; // Import API models for Product, User and responses
 import 'package:elure_app/screens/cart/cart_screen.dart'; // Import CartScreen to navigate to it
 import 'package:elure_app/services/api_service.dart'; // Import ApiService
 import 'package:elure_app/services/local_storage_service.dart'; // Import LocalStorageService
 import 'package:flutter/material.dart';
 
 class ProductDetailScreen extends StatefulWidget {
-  final Map<String, String> product;
+  final Product product; // Changed to accept Product object directly
+  final String brandName; // Added to pass the brand name string
 
-  const ProductDetailScreen({super.key, required this.product});
+  const ProductDetailScreen({
+    super.key,
+    required this.product,
+    required this.brandName,
+  });
 
   @override
   State<ProductDetailScreen> createState() => _ProductDetailScreenState();
 }
 
-class _ProductDetailScreenState extends State<ProductDetailScreen> {
+class _ProductDetailScreenState extends State<ProductDetailScreen>
+    with TickerProviderStateMixin {
+  // Added TickerProviderStateMixin here
   static const Color primaryPink = Color(0xFFE91E63);
+  static const String _baseUrl =
+      'https://apptoko.mobileprojp.com/public/'; // Base URL for images
 
   // ApiService and LocalStorageService instances
   final ApiService _apiService = ApiService();
@@ -33,30 +42,73 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   // Available stock for the product, initialized from product data
   late int _availableStock;
 
+  // PageController for managing the PageView for product images
+  late PageController _pageController;
+  int _currentPageIndex = 0;
+  // TabController for the TabPageSelector
+  late TabController _tabController;
+
   @override
   void initState() {
     super.initState();
-    // Initialize selected size/variant if they exist in the product data
-    if (widget.product['sizes'] != null &&
-        widget.product['sizes']!.isNotEmpty) {
-      _selectedSize = widget.product['sizes']!.split(',').first;
-    }
-    if (widget.product['variants'] != null &&
-        widget.product['variants']!.isNotEmpty) {
-      _selectedVariant = widget.product['variants']!.split(',').first;
-    }
-
     // Initialize available stock from the passed product data
-    _availableStock = int.tryParse(widget.product['stock'] ?? '0') ?? 0;
+    _availableStock = widget.product.stock ?? 0;
+
+    // Initialize PageController
+    _pageController = PageController();
+    _pageController.addListener(() {
+      setState(() {
+        _currentPageIndex = _pageController.page?.round() ?? 0;
+      });
+      // Synchronize TabController with PageController
+      _tabController.animateTo(_currentPageIndex);
+    });
+
+    // Initialize TabController for TabPageSelector
+    _tabController = TabController(
+      length: (widget.product.images?.length ?? 0) > 0
+          ? widget.product.images!.length
+          : 1,
+      vsync: this,
+    );
 
     // Load the quantity of this product already in the user's cart
     _loadCurrentProductCartQuantity();
+
+    // Initialize selected size and variant based on dummy logic for now
+    // as these fields are not present in the current Product API model.
+    // If your API supports product sizes/variants, you would parse them from
+    // the Product model here.
+    if (widget.product.description?.contains('5ml') ?? false) {
+      _selectedSize = '5ml';
+    } else if (widget.product.description?.contains('15ml') ?? false) {
+      _selectedSize = '15ml';
+    } else if (widget.product.description?.contains('50ml') ?? false) {
+      _selectedSize = '50ml';
+    }
+
+    if (widget.product.name?.contains('Cream') ?? false) {
+      _selectedVariant = 'Normal';
+    } else if (widget.product.name?.contains('Makeup') ?? false) {
+      _selectedVariant = 'Red';
+    }
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    _tabController.dispose();
+    super.dispose();
   }
 
   // Function to load the current quantity of this product in the user's cart
   Future<void> _loadCurrentProductCartQuantity() async {
-    final int? productId = int.tryParse(widget.product['id'] ?? '');
-    if (productId == null) return; // Cannot check cart for invalid product ID
+    final int? productId = widget.product.id;
+
+    if (productId == null) {
+      print('Product ID is null, cannot load cart quantity.');
+      return; // Cannot check cart for invalid product ID
+    }
 
     try {
       final CartListResponse cartResponse = await _apiService.getCartItems();
@@ -83,15 +135,21 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           }
         });
       }
-    } catch (e) {
-      print('Error loading current product quantity in cart: $e');
-      // Handle error, e.g., show a snackbar. Keep _currentProductInCartQuantity as 0.
+    } on ErrorResponse catch (e) {
+      print('Error loading current product quantity in cart: ${e.message}');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              'Could not load current cart status: ${e.toString()}',
-            ),
+            content: Text('Could not load current cart status: ${e.message}'),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Unexpected error loading current product quantity in cart: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('An unexpected error occurred: ${e.toString()}'),
           ),
         );
       }
@@ -100,8 +158,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
   // Function to handle adding the product to cart
   Future<void> _handleAddToCart() async {
-    // Ensure product ID can be parsed to an integer
-    final int? productId = int.tryParse(widget.product['id'] ?? '');
+    final int? productId = widget.product.id;
 
     if (productId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -113,7 +170,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     final int totalQuantityAfterAdd =
         _selectedQuantityToAdd + _currentProductInCartQuantity;
 
-    // Check if the current quantity (selected to add + existing) exceeds available stock
     if (_selectedQuantityToAdd == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select a quantity to add.')),
@@ -121,6 +177,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       return;
     }
 
+    // Check if the total quantity (selected to add + existing) exceeds available stock
     if (totalQuantityAfterAdd > _availableStock) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -129,7 +186,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           ),
         ),
       );
-      return; // Stop the function if quantity is too high
+      return;
     }
 
     // Check if user is logged in
@@ -141,6 +198,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       return;
     }
 
+    if (!mounted) return; // Check mounted status before showing SnackBar
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('Adding to cart...')));
@@ -184,25 +242,51 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Extract product details from the passed map
-    final String name = widget.product['name'] ?? 'Unknown Product';
-    final String brand = widget.product['brand'] ?? 'Unknown Brand';
-    final String originalPrice = widget.product['originalPrice'] ?? '';
-    final String currentPrice = widget.product['currentPrice'] ?? '\$0.00';
-    final String discount = widget.product['discount'] ?? '';
-    final String imageUrl =
-        widget.product['imageUrl'] ??
-        'https://placehold.co/300x300?text=Product';
+    // Extract product details directly from the Product object
+    final String name = widget.product.name ?? 'Unknown Product';
+    final String brand = widget.brandName; // Use the passed brand name
     final String description =
-        widget.product['description'] ?? 'No description available.';
-    final List<String> availableSizes =
-        (widget.product['sizes']?.split(',') ?? [])
-            .where((s) => s.isNotEmpty)
-            .toList();
-    final List<String> availableVariants =
-        (widget.product['variants']?.split(',') ?? [])
-            .where((v) => v.isNotEmpty)
-            .toList();
+        widget.product.description ?? 'No description available.';
+
+    final double? productPrice = widget.product.price?.toDouble();
+    final double? productDiscount = widget.product.discount;
+
+    String displayOriginalPrice =
+        '\$${productPrice?.toStringAsFixed(0) ?? '0'}.00';
+    String displayCurrentPrice;
+
+    if (productPrice != null &&
+        productDiscount != null &&
+        productDiscount > 0) {
+      double discountedPrice = productPrice * (1 - productDiscount);
+      displayCurrentPrice = '\$${discountedPrice.toStringAsFixed(0)}.00';
+    } else {
+      displayCurrentPrice = '\$${productPrice?.toStringAsFixed(0) ?? '0'}.00';
+    }
+
+    String displayDiscount = (productDiscount != null && productDiscount > 0)
+        ? '${(productDiscount * 100).toStringAsFixed(0)}%'
+        : ''; // Empty string if no discount
+
+    // Prepare image URLs for PageView
+    final List<String> imageUrls = (widget.product.images ?? [])
+        .map(
+          (path) => !path.startsWith('http://') && !path.startsWith('https://')
+              ? '$_baseUrl$path'
+              : path,
+        )
+        .toList();
+
+    // Dummy sizes and variants as they are not in the Product model.
+    final List<String> availableSizes = [];
+    if (widget.product.description?.contains('5ml') ?? false) {
+      availableSizes.addAll(['5ml', '15ml', '50ml']);
+    }
+
+    final List<String> availableVariants = [];
+    if (widget.product.name?.contains('Cream') ?? false) {
+      availableVariants.addAll(['Normal', 'Oily', 'Dry']);
+    }
 
     // Determine if the add to cart button should be enabled
     final bool canAddToCart =
@@ -216,9 +300,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       addToCartButtonText = 'Out of Stock';
     } else if (_currentProductInCartQuantity >= _availableStock) {
       addToCartButtonText = 'Already Max In Cart';
-    } else if ((_selectedQuantityToAdd + _currentProductInCartQuantity) >
-        _availableStock) {
-      addToCartButtonText = 'Quantity Exceeds Stock';
     } else if (_selectedQuantityToAdd == 0 &&
         _currentProductInCartQuantity < _availableStock) {
       addToCartButtonText = 'Select Quantity'; // Prompt user to select quantity
@@ -233,28 +314,55 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            // Product Image
+            // Product Image Carousel (PageView)
             Stack(
               children: [
-                ClipRRect(
-                  borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(30),
-                    bottomRight: Radius.circular(30),
+                SizedBox(
+                  height: 300,
+                  child: PageView.builder(
+                    controller: _pageController,
+                    itemCount: imageUrls.isEmpty ? 1 : imageUrls.length,
+                    itemBuilder: (context, index) {
+                      String currentImageUrl = imageUrls.isNotEmpty
+                          ? imageUrls[index]
+                          : 'https://placehold.co/300x300?text=No+Image';
+                      return ClipRRect(
+                        borderRadius: const BorderRadius.only(
+                          bottomLeft: Radius.circular(30),
+                          bottomRight: Radius.circular(30),
+                        ),
+                        child: Image.network(
+                          currentImageUrl,
+                          height: 300,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) =>
+                              Container(
+                                height: 300,
+                                color: Colors.grey[200],
+                                child: const Center(
+                                  child: Icon(Icons.broken_image, size: 50),
+                                ),
+                              ),
+                        ),
+                      );
+                    },
                   ),
-                  child: Image.network(
-                    imageUrl,
-                    height: 300,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Container(
-                      height: 300,
-                      color: Colors.grey[200],
-                      child: const Center(
-                        child: Icon(Icons.broken_image, size: 50),
+                ),
+                if (imageUrls.length >
+                    1) // Only show page indicator if there's more than one image
+                  Positioned(
+                    bottom: 10,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: TabPageSelector(
+                        controller: _tabController, // Use the _tabController
+                        selectedColor: primaryPink,
+                        color: Colors.grey,
                       ),
                     ),
                   ),
-                ),
                 Positioned(
                   top: 20,
                   right: 20,
@@ -305,19 +413,19 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   const SizedBox(height: 10),
                   Row(
                     children: <Widget>[
-                      if (originalPrice.isNotEmpty &&
-                          originalPrice != currentPrice)
+                      if (displayOriginalPrice.isNotEmpty &&
+                          displayOriginalPrice != displayCurrentPrice)
                         Text(
-                          originalPrice,
+                          displayOriginalPrice,
                           style: TextStyle(
                             fontSize: 18,
                             color: Colors.grey[600],
                             decoration: TextDecoration.lineThrough,
                           ),
                         ),
-                      SizedBox(width: originalPrice.isNotEmpty ? 10 : 0),
+                      SizedBox(width: displayOriginalPrice.isNotEmpty ? 10 : 0),
                       Text(
-                        currentPrice,
+                        displayCurrentPrice,
                         style: const TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
@@ -325,7 +433,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                         ),
                       ),
                       const SizedBox(width: 10),
-                      if (discount.isNotEmpty)
+                      if (displayDiscount.isNotEmpty)
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 8,
@@ -336,7 +444,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(
-                            '$discount Off',
+                            '$displayDiscount Off',
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 14,
@@ -529,7 +637,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         },
       ),
       title: Text(
-        widget.product['name'] ?? 'Product Details',
+        widget.product.name ?? 'Product Details',
         style: const TextStyle(
           color: Colors.black,
           fontSize: 20,

@@ -396,9 +396,10 @@ class Product {
       categoryId: _parseIntSafely(json['category_id']), // Parse new field
       brandId: _parseIntSafely(json['brand_id']), // Parse new field
       discount: _parseDoubleSafely(json['discount']), // Parse new field
-      images: json['images'] != null
-          ? List<String>.from(json['images'].map((x) => x.toString()))
-          : null, // Parse new field
+      // IMPORTANT FIX: Change from json['images'] to json['image_urls']
+      images: json['image_urls'] != null
+          ? List<String>.from(json['image_urls'].map((x) => x.toString()))
+          : null, // Parse actual image URLs from the API response
       createdAt: json['created_at'],
       updatedAt: json['updated_at'],
     );
@@ -414,7 +415,8 @@ class Product {
       'category_id': categoryId,
       'brand_id': brandId,
       'discount': discount,
-      'images': images,
+      'images':
+          images, // When sending, this would contain Base64 for new images or existing URLs
       'created_at': createdAt,
       'updated_at': updatedAt,
     };

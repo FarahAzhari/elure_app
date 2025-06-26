@@ -1,4 +1,6 @@
+import 'package:elure_app/models/api_models.dart'; // Import API models for Product, Category, Brand
 import 'package:elure_app/screens/product/product_detail_screen.dart';
+import 'package:elure_app/services/api_service.dart'; // Import ApiService
 import 'package:flutter/material.dart';
 
 class CategoryDetailScreen extends StatefulWidget {
@@ -13,107 +15,165 @@ class CategoryDetailScreen extends StatefulWidget {
 class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
   // Define the primary pink color for consistency.
   static const Color primaryPink = Color(0xFFE91E63);
+  static const String _baseUrl =
+      'https://apptoko.mobileprojp.com/public/'; // Base URL for images
 
-  // Sample product data with full details, filtered by categoryName in a real app.
-  // For now, this is static dummy data to show the layout.
-  final List<Map<String, String>> _products = [
-    {
-      'name': 'Hair Cartoon',
-      'brand': 'Glowora',
-      'originalPrice': '\$40.00',
-      'currentPrice': '\$27.00',
-      'discount': '20%',
-      'imageUrl': 'https://placehold.co/150x150/ADD8E6/000000?text=Hair',
-      'description':
-          'A fantastic product for hair care, providing essential nutrients for healthy and shiny hair. This product is designed to revitalize and protect your hair from daily damage. Suitable for all hair types.',
-      'sizes': '5ml,15ml,50ml', // Dummy sizes
-      'variants': 'Red,Blue,Green', // Dummy variants
-    },
-    {
-      'name': 'Nourkrin Femme Shampoo',
-      'brand': 'Luscenta',
-      'originalPrice': '\$50.00',
-      'currentPrice': '\$35.00',
-      'discount': '30%',
-      'imageUrl': 'https://placehold.co/150x150/90EE90/000000?text=Shampoo',
-      'description':
-          'Advanced shampoo formulated to boost hair strength and volume. Infused with natural extracts to nourish the scalp and promote healthy hair growth. Experience the difference with every wash.',
-      'sizes': '50ml,100ml,200ml',
-      'variants': 'Normal,Oily,Dry',
-    },
-    {
-      'name': 'Dior Bronze After Sun',
-      'brand': 'Bloomelle',
-      'originalPrice': '\$40.00',
-      'currentPrice': '\$27.00',
-      'discount': '15%',
-      'imageUrl': 'https://placehold.co/150x150/FFB6C1/000000?text=Sun',
-      'description':
-          'Soothing after-sun lotion for radiant and hydrated skin. It helps to calm sunburned skin and prolong your tan. Non-greasy formula that absorbs quickly for instant relief.',
-      'sizes': '75ml,150ml',
-      'variants': 'N/A',
-    },
-    {
-      'name': 'Face Primer Tube',
-      'brand': 'Naturae',
-      'originalPrice': '\$50.00',
-      'currentPrice': '\$35.00',
-      'discount': '25%',
-      'imageUrl': 'https://placehold.co/150x150/DDA0DD/000000?text=Primer',
-      'description':
-          'Perfect base for your makeup, ensuring long-lasting wear and a smooth canvas. Minimizes pores and fine lines, leaving your skin flawless and ready for makeup application.',
-      'sizes': '30ml',
-      'variants': 'Matte,Dewy,Illuminating',
-    },
-    {
-      'name': 'Spray Bottle - Basic',
-      'brand': 'Skinova',
-      'originalPrice': '\$40.00',
-      'currentPrice': '\$27.00',
-      'discount': '10%',
-      'imageUrl': 'https://placehold.co/150x150/B0E0E6/000000?text=Bottle',
-      'description':
-          'Versatile spray bottle for various beauty applications, from setting spray to toner. Durable and leak-proof design, perfect for travel or daily use.',
-      'sizes': '100ml,250ml',
-      'variants': 'N/A',
-    },
-    {
-      'name': 'Nourkrin Femme Conditioner',
-      'brand': 'Beautifique',
-      'originalPrice': '\$50.00',
-      'currentPrice': '\$35.00',
-      'discount': '30%',
-      'imageUrl': 'https://placehold.co/150x150/F08080/000000?text=Cond',
-      'description':
-          'Complementary conditioner to keep your hair smooth and shiny. It detangles and softens hair, reducing breakage and improving manageability. For best results, use after Nourkrin Femme Shampoo.',
-      'sizes': '50ml,100ml,200ml',
-      'variants': 'Normal,Dry,ColorTreated',
-    },
-    {
-      'name': 'Vitamin C Serum',
-      'brand': 'VitaGlow',
-      'originalPrice': '\$60.00',
-      'currentPrice': '\$45.00',
-      'discount': '25%',
-      'imageUrl': 'https://placehold.co/150x150/FFD700/000000?text=VitC',
-      'description':
-          'Brightening serum with potent Vitamin C for a radiant complexion. Reduces dark spots and evens skin tone. A powerful antioxidant that protects against environmental damage.',
-      'sizes': '15ml,30ml',
-      'variants': 'N/A',
-    },
-    {
-      'name': 'Hydrating Face Mask',
-      'brand': 'AquaSense',
-      'originalPrice': '\$25.00',
-      'currentPrice': '\$18.00',
-      'discount': '28%',
-      'imageUrl': 'https://placehold.co/150x150/87CEEB/000000?text=Mask',
-      'description':
-          'Deeply hydrating mask for supple and soft skin. Infused with hyaluronic acid and natural plant extracts, it provides intense moisture and leaves your skin feeling refreshed.',
-      'sizes': '50g,100g',
-      'variants': 'Sheet,Clay,Gel',
-    },
-  ];
+  final ApiService _apiService = ApiService();
+
+  List<Product> _products = [];
+  Map<int, Brand> _brandsMap = {}; // To map brand IDs to brand names
+  Map<String, int> _categoriesNameToIdMap = {}; // To map category names to IDs
+
+  bool _isLoadingProducts = true;
+  String? _productsErrorMessage;
+  bool _isLoadingBrands = true;
+  String? _brandsErrorMessage;
+  bool _isLoadingCategoriesMapping = true;
+  String? _categoriesMappingErrorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    // Fetch brands and categories first, then products
+    _fetchInitialData();
+  }
+
+  Future<void> _fetchInitialData() async {
+    await Future.wait([_fetchBrands(), _fetchCategoriesForMapping()]);
+    _fetchProductsByCategory();
+  }
+
+  // Function to fetch brands and create a map for quick lookup
+  Future<void> _fetchBrands() async {
+    setState(() {
+      _isLoadingBrands = true;
+      _brandsErrorMessage = null;
+    });
+
+    try {
+      final brandResponse = await _apiService.getBrands();
+      if (mounted) {
+        setState(() {
+          _brandsMap = {for (var b in brandResponse.data ?? []) b.id!: b};
+          _isLoadingBrands = false;
+        });
+      }
+    } on ErrorResponse catch (e) {
+      if (mounted) {
+        setState(() {
+          _brandsErrorMessage = e.message;
+          _isLoadingBrands = false;
+        });
+        print('CategoryDetail: Error fetching brands: ${e.message}');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _brandsErrorMessage =
+              'CategoryDetail: Failed to load brands: ${e.toString()}';
+          _isLoadingBrands = false;
+        });
+        print('CategoryDetail: Unexpected error fetching brands: $e');
+      }
+    }
+  }
+
+  // Function to fetch categories to create a name-to-ID map
+  Future<void> _fetchCategoriesForMapping() async {
+    setState(() {
+      _isLoadingCategoriesMapping = true;
+      _categoriesMappingErrorMessage = null;
+    });
+
+    try {
+      final categoryResponse = await _apiService.getCategories();
+      if (mounted) {
+        setState(() {
+          _categoriesNameToIdMap = {
+            for (var c in categoryResponse.data ?? []) c.name!: c.id!,
+          };
+          _isLoadingCategoriesMapping = false;
+        });
+      }
+    } on ErrorResponse catch (e) {
+      if (mounted) {
+        setState(() {
+          _categoriesMappingErrorMessage = e.message;
+          _isLoadingCategoriesMapping = false;
+        });
+        print(
+          'CategoryDetail: Error fetching categories for mapping: ${e.message}',
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _categoriesMappingErrorMessage =
+              'CategoryDetail: Failed to load categories for mapping: ${e.toString()}';
+          _isLoadingCategoriesMapping = false;
+        });
+        print(
+          'CategoryDetail: Unexpected error fetching categories for mapping: $e',
+        );
+      }
+    }
+  }
+
+  // Function to fetch products and filter them by the current category name
+  Future<void> _fetchProductsByCategory() async {
+    setState(() {
+      _isLoadingProducts = true;
+      _productsErrorMessage = null;
+    });
+
+    try {
+      final ProductListResponse response = await _apiService.getProducts();
+      if (mounted) {
+        // Filter products by categoryName
+        final int? targetCategoryId =
+            _categoriesNameToIdMap[widget.categoryName];
+
+        List<Product> filteredProducts = [];
+        if (targetCategoryId != null) {
+          filteredProducts =
+              response.data
+                  ?.where((p) => p.categoryId == targetCategoryId)
+                  .toList() ??
+              [];
+        } else {
+          // If category ID not found for the given name, show all products or a specific message
+          // For now, if no specific category ID matched, we'll assume no products for this category.
+          // In a real app, you might want to show a default set or an error.
+          print('Category ID not found for: ${widget.categoryName}');
+        }
+
+        setState(() {
+          _products = filteredProducts;
+          _isLoadingProducts = false;
+        });
+        print(
+          'CategoryDetail: Products fetched and filtered successfully for ${widget.categoryName}: ${_products.length} items',
+        );
+      }
+    } on ErrorResponse catch (e) {
+      if (mounted) {
+        setState(() {
+          _productsErrorMessage = e.message;
+          _isLoadingProducts = false;
+        });
+        print('CategoryDetail: Error fetching products: ${e.message}');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _productsErrorMessage =
+              'CategoryDetail: Failed to load products: ${e.toString()}';
+          _isLoadingProducts = false;
+        });
+        print('CategoryDetail: Unexpected error fetching products: $e');
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -224,34 +284,119 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
 
   // Builds the grid of products
   Widget _buildProductGrid() {
-    return GridView.builder(
-      shrinkWrap: true, // Take only as much space as needed
-      physics:
-          const NeverScrollableScrollPhysics(), // Disable scrolling within the grid
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2, // Two items per row
-        crossAxisSpacing: 15, // Horizontal spacing
-        mainAxisSpacing: 15, // Vertical spacing
-        childAspectRatio:
-            0.75, // Aspect ratio of each grid item (adjusted to fit product info)
-      ),
-      itemCount: _products.length,
-      itemBuilder: (context, index) {
-        return _buildProductCard(_products[index]);
-      },
-    );
+    if (_isLoadingProducts || _isLoadingBrands || _isLoadingCategoriesMapping) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(20.0),
+          child: CircularProgressIndicator(color: primaryPink),
+        ),
+      );
+    } else if (_productsErrorMessage != null ||
+        _brandsErrorMessage != null ||
+        _categoriesMappingErrorMessage != null) {
+      String errorMessage = '';
+      if (_productsErrorMessage != null)
+        errorMessage += 'Products: $_productsErrorMessage\n';
+      if (_brandsErrorMessage != null)
+        errorMessage += 'Brands: $_brandsErrorMessage\n';
+      if (_categoriesMappingErrorMessage != null)
+        errorMessage += 'Category Map: $_categoriesMappingErrorMessage\n';
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Text(
+            errorMessage.trim(),
+            style: const TextStyle(color: Colors.red, fontSize: 16),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    } else if (_products.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(20.0),
+          child: Text(
+            'No products found for this category.',
+            style: TextStyle(color: Colors.grey, fontSize: 16),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    } else {
+      return GridView.builder(
+        shrinkWrap: true, // Take only as much space as needed
+        physics:
+            const NeverScrollableScrollPhysics(), // Disable scrolling within the grid
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2, // Two items per row
+          crossAxisSpacing: 15, // Horizontal spacing
+          mainAxisSpacing: 15, // Vertical spacing
+          childAspectRatio:
+              0.75, // Aspect ratio of each grid item (adjusted to fit product info)
+        ),
+        itemCount: _products.length,
+        itemBuilder: (context, index) {
+          return _buildProductCard(_products[index]);
+        },
+      );
+    }
   }
 
   // Helper widget to build individual product cards (similar to HomeScreen)
-  Widget _buildProductCard(Map<String, String> product) {
+  Widget _buildProductCard(Product product) {
+    // Determine the image URL for the product card
+    String imageUrlToDisplay = '';
+    if (product.images != null && product.images!.isNotEmpty) {
+      imageUrlToDisplay = product.images!.first;
+      // Prepend base URL if it's a relative path
+      if (!imageUrlToDisplay.startsWith('http://') &&
+          !imageUrlToDisplay.startsWith('https://')) {
+        imageUrlToDisplay = '$_baseUrl$imageUrlToDisplay';
+      }
+    } else {
+      // Fallback placeholder image if no image is provided by API
+      imageUrlToDisplay =
+          'https://placehold.co/150x150/FF00FF/FFFFFF?text=${product.name?.substring(0, 1) ?? 'P'}';
+    }
+
+    // Calculate prices and discount display
+    final double? productPrice = product.price?.toDouble();
+    final double? productDiscount = product.discount;
+
+    String displayOriginalPrice =
+        '\$${productPrice?.toStringAsFixed(0) ?? '0'}.00';
+    String displayCurrentPrice;
+
+    if (productPrice != null &&
+        productDiscount != null &&
+        productDiscount > 0) {
+      double discountedPrice = productPrice * (1 - productDiscount);
+      displayCurrentPrice = '\$${discountedPrice.toStringAsFixed(0)}.00';
+    } else {
+      displayCurrentPrice = '\$${productPrice?.toStringAsFixed(0) ?? '0'}.00';
+    }
+
+    final String displayDiscount =
+        (productDiscount != null && productDiscount > 0)
+        ? '${(productDiscount * 100).toStringAsFixed(0)}%'
+        : '0%'; // Convert discount to percentage string
+
+    // Get brand name from the map using brandId
+    final String brandName =
+        _brandsMap[product.brandId]?.name ?? 'Unknown Brand';
+
     return GestureDetector(
       // Added GestureDetector here
       onTap: () {
-        print('Tapped on product: ${product['name']}');
+        print('Tapped on product: ${product.name}');
+        // Pass the Product object and the resolved brandName directly
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => ProductDetailScreen(product: product),
+            builder: (context) => ProductDetailScreen(
+              product: product,
+              brandName: brandName, // Pass the actual brand name
+            ),
           ),
         );
       },
@@ -278,7 +423,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                     top: Radius.circular(15),
                   ),
                   child: Image.network(
-                    product['imageUrl']!,
+                    imageUrlToDisplay, // Use determined image URL
                     height: 120, // Adjusted height for image in detail view
                     width: double.infinity, // Take full width of the card
                     fit: BoxFit.cover,
@@ -289,9 +434,9 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                     ),
                   ),
                 ),
-                if (product['discount'] != null &&
-                    product['discount'] !=
-                        'N/A') // Show discount tag if available and not N/A
+                if (product.discount != null &&
+                    product.discount! >
+                        0) // Show discount tag if available and not N/A
                   Positioned(
                     top: 10,
                     left: 10,
@@ -305,7 +450,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Text(
-                        product['discount']!,
+                        displayDiscount,
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 12,
@@ -354,7 +499,8 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                     child: IconButton(
                       icon: const Icon(Icons.add, color: Colors.white),
                       onPressed: () {
-                        print('Add ${product['name']} to cart');
+                        print('Add ${product.name} to cart');
+                        // Implement add to cart logic here
                       },
                     ),
                   ),
@@ -367,12 +513,12 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   Text(
-                    product['brand']!,
+                    brandName,
                     style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                   ),
                   const SizedBox(height: 5),
                   Text(
-                    product['name']!,
+                    product.name ?? 'Unknown Product',
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -383,21 +529,24 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                   const SizedBox(height: 5),
                   Row(
                     children: [
-                      if (product['originalPrice'] != null &&
-                          product['originalPrice'] !=
-                              product['currentPrice']) // Show original price only if different from current
-                        Text(
-                          product['originalPrice']!,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey[600],
-                            decoration: TextDecoration
-                                .lineThrough, // Strikethrough for original price
+                      if (productPrice != null &&
+                          productDiscount != null &&
+                          productDiscount >
+                              0) // Show original price only if different from current
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8.0),
+                          child: Text(
+                            displayOriginalPrice,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[600],
+                              decoration: TextDecoration
+                                  .lineThrough, // Strikethrough for original price
+                            ),
                           ),
                         ),
-                      const SizedBox(width: 8),
                       Text(
-                        product['currentPrice']!,
+                        displayCurrentPrice,
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,

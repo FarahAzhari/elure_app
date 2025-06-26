@@ -15,19 +15,62 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   // Define the primary pink color for consistency, as observed in your designs.
   static const Color primaryPink = Color(0xFFE91E63);
+  static const String _baseUrl =
+      'https://apptoko.mobileprojp.com/public/'; // Base URL for images
 
   // Instance of ApiService
   final ApiService _apiService = ApiService();
 
   // State variables for products
   List<Product> _bestSellerProducts = [];
+  // Maps for quick lookup of brand names by ID (needed for ProductDetailScreen)
+  Map<int, Brand> _brandsMap = {};
   bool _isLoadingProducts = true;
   String? _productsErrorMessage;
+  bool _isLoadingBrands = true; // Track loading for brands
+  String? _brandsErrorMessage;
 
   @override
   void initState() {
     super.initState();
-    _fetchBestSellerProducts(); // Fetch products when the screen initializes
+    _fetchBrands().then((_) {
+      // Fetch brands first
+      _fetchBestSellerProducts(); // Then fetch products
+    });
+  }
+
+  // Function to fetch brands from the API (copied from ManageProductsScreen)
+  Future<void> _fetchBrands() async {
+    setState(() {
+      _isLoadingBrands = true;
+      _brandsErrorMessage = null;
+    });
+
+    try {
+      final brandResponse = await _apiService.getBrands();
+      if (mounted) {
+        setState(() {
+          _brandsMap = {for (var b in brandResponse.data ?? []) b.id!: b};
+          _isLoadingBrands = false;
+        });
+      }
+    } on ErrorResponse catch (e) {
+      if (mounted) {
+        setState(() {
+          _brandsErrorMessage = e.message;
+          _isLoadingBrands = false;
+        });
+        print('Home: Error fetching brands: ${e.message}');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _brandsErrorMessage = 'Home: Failed to load brands: ${e.toString()}';
+          _isLoadingBrands = false;
+        });
+        print('Home: Unexpected error fetching brands: $e');
+      }
+    }
   }
 
   // Function to fetch best seller products from the API
@@ -425,12 +468,18 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Builds the grid of best seller products
   Widget _buildBestSellersGrid() {
-    if (_isLoadingProducts) {
+    if (_isLoadingProducts || _isLoadingBrands) {
+      // Also check if brands are loading
       return const Center(child: CircularProgressIndicator(color: primaryPink));
-    } else if (_productsErrorMessage != null) {
+    } else if (_productsErrorMessage != null || _brandsErrorMessage != null) {
+      String errorMessage = '';
+      if (_productsErrorMessage != null)
+        errorMessage += 'Products: $_productsErrorMessage\n';
+      if (_brandsErrorMessage != null)
+        errorMessage += 'Brands: $_brandsErrorMessage\n';
       return Center(
         child: Text(
-          _productsErrorMessage!,
+          errorMessage.trim(),
           style: const TextStyle(color: Colors.red, fontSize: 16),
           textAlign: TextAlign.center,
         ),
@@ -463,41 +512,57 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Helper widget to build individual product cards
   Widget _buildProductCard(Product product) {
-    // Generate dummy values for fields not provided by the current API
-    final String dummyBrand = 'Glowora';
-    final String dummyImageUrl =
-        'https://placehold.co/150x150/FF00FF/FFFFFF?text=${product.name?.substring(0, 1) ?? 'P'}';
-    final String dummyDiscount = '20%'; // Example dummy discount
+    // Determine the image URL for the product card
+    String imageUrlToDisplay = '';
+    if (product.images != null && product.images!.isNotEmpty) {
+      imageUrlToDisplay = product.images!.first;
+      // Prepend base URL if it's a relative path
+      if (!imageUrlToDisplay.startsWith('http://') &&
+          !imageUrlToDisplay.startsWith('https://')) {
+        imageUrlToDisplay = '$_baseUrl$imageUrlToDisplay';
+      }
+    } else {
+      // Fallback placeholder image if no image is provided by API
+      imageUrlToDisplay =
+          'https://placehold.co/150x150/FF00FF/FFFFFF?text=${product.name?.substring(0, 1) ?? 'P'}';
+    }
 
-    // Use API price for both original and current for now, if discount not applicable
-    final String displayOriginalPrice =
-        '\$${product.price?.toStringAsFixed(0) ?? '0'}.00';
-    final String displayCurrentPrice =
-        '\$${product.price?.toStringAsFixed(0) ?? '0'}.00';
+    // Calculate prices and discount display
+    final double? productPrice = product.price?.toDouble();
+    final double? productDiscount = product.discount;
+
+    String displayOriginalPrice =
+        '\$${productPrice?.toStringAsFixed(0) ?? '0'}.00';
+    String displayCurrentPrice;
+
+    if (productPrice != null &&
+        productDiscount != null &&
+        productDiscount > 0) {
+      double discountedPrice = productPrice * (1 - productDiscount);
+      displayCurrentPrice = '\$${discountedPrice.toStringAsFixed(0)}.00';
+    } else {
+      displayCurrentPrice = '\$${productPrice?.toStringAsFixed(0) ?? '0'}.00';
+    }
+
+    final String displayDiscount =
+        (productDiscount != null && productDiscount > 0)
+        ? '${(productDiscount * 100).toStringAsFixed(0)}%'
+        : '0%'; // Convert discount to percentage string
+
+    // Get brand name from the map using brandId
+    final String brandName =
+        _brandsMap[product.brandId]?.name ?? 'Unknown Brand';
 
     return GestureDetector(
       onTap: () {
         print('Tapped on product: ${product.name}');
-        // Pass a map containing API data and dummy data to ProductDetailScreen
+        // Pass the Product object and the resolved brandName directly
         Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => ProductDetailScreen(
-              product: {
-                'id': product.id.toString(),
-                'name': product.name ?? 'Unknown Product',
-                'description':
-                    product.description ?? 'No description available.',
-                'brand': dummyBrand,
-                'originalPrice': displayOriginalPrice,
-                'currentPrice': displayCurrentPrice,
-                'discount': dummyDiscount,
-                'imageUrl': dummyImageUrl,
-                'sizes': '5ml,15ml,50ml', // Dummy sizes
-                'variants': 'Red,Blue,Green', // Dummy variants
-                'stock':
-                    product.stock?.toString() ?? '0', // Pass stock as string
-              },
+              product: product,
+              brandName: brandName, // Pass the actual brand name
             ),
           ),
         );
@@ -525,7 +590,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     top: Radius.circular(15),
                   ),
                   child: Image.network(
-                    dummyImageUrl, // Use dummy image URL
+                    imageUrlToDisplay, // Use determined image URL
                     height: 150, // Fixed height for the image
                     width: double.infinity, // Take full width of the card
                     fit: BoxFit.cover,
@@ -537,28 +602,30 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 // Discount tag
-                Positioned(
-                  top: 10,
-                  left: 10,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: primaryPink, // Pink background for discount
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      dummyDiscount, // Use dummy discount
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
+                if (product.discount != null &&
+                    product.discount! > 0) // Only show if there's a discount
+                  Positioned(
+                    top: 10,
+                    left: 10,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: primaryPink, // Pink background for discount
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        displayDiscount, // Use actual calculated discount
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
-                ),
                 Positioned(
                   top: 10,
                   right: 10,
@@ -600,17 +667,36 @@ class _HomeScreenState extends State<HomeScreen> {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 5),
-                  Text(
-                    displayCurrentPrice, // Use current price (from API price)
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: primaryPink, // Pink for price
-                    ),
+                  Row(
+                    // Added Row to hold price texts
+                    children: [
+                      if (productPrice != null &&
+                          productDiscount != null &&
+                          productDiscount > 0)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8.0),
+                          child: Text(
+                            displayOriginalPrice,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[600],
+                              decoration: TextDecoration.lineThrough,
+                            ),
+                          ),
+                        ),
+                      Text(
+                        displayCurrentPrice, // Use current price (from API price)
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: primaryPink, // Pink for price
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 5),
                   Text(
-                    dummyBrand, // Use dummy brand name
+                    brandName, // Use resolved brand name
                     style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                   ),
                 ],

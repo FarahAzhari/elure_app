@@ -1,6 +1,7 @@
+import 'package:elure_app/models/api_models.dart'; // Import API models for Category
 import 'package:elure_app/screens/category/category_detail_screen.dart';
+import 'package:elure_app/services/api_service.dart'; // Import ApiService
 import 'package:flutter/material.dart';
-// Import the new detail screen
 
 class CategoryScreen extends StatefulWidget {
   const CategoryScreen({super.key});
@@ -10,45 +11,59 @@ class CategoryScreen extends StatefulWidget {
 }
 
 class _CategoryScreenState extends State<CategoryScreen> {
-  // Sample data for categories. In a real application, this would come from an API.
-  final List<Map<String, dynamic>> _categories = [
-    {
-      'name': 'Healing & Repair Creams',
-      'productCount': 1020,
-      'imageUrl':
-          'https://placehold.co/100x100/ADD8E6/FFFFFF?text=HR', // Placeholder light blue
-      'subCategories': [], // No subcategories for this one in the image
-    },
-    {
-      'name': 'Clear Skin Essentials',
-      'productCount': 1350,
-      'imageUrl':
-          'https://placehold.co/100x100/90EE90/FFFFFF?text=CS', // Placeholder light green
-      'subCategories': [
-        'Facial Cleansers',
-        'Exfoliating Scrubs',
-        'Hydrating Moisturizers',
-        'Acne Spot Treatments',
-        'Clay & Sheet Masks',
-        'Skin Toners & Mists',
-      ],
-    },
-    {
-      'name': 'Clear Skin Essentials', // This appears again in the image
-      'productCount': 750,
-      'imageUrl':
-          'https://placehold.co/100x100/FFB6C1/FFFFFF?text=CS', // Placeholder light pink
-      'subCategories': [],
-    },
-    {
-      'name': 'Baby Bath & Hygiene',
-      'productCount': 1500,
-      'imageUrl':
-          'https://placehold.co/100x100/FFE4B5/000000?text=BB', // Placeholder peach
-      'subCategories': [],
-    },
-    // You can add more categories here as per your design
-  ];
+  // Define the primary pink color for consistency.
+  static const Color primaryPink = Color(0xFFE91E63);
+
+  // Instance of ApiService
+  final ApiService _apiService = ApiService();
+
+  // State variables for categories
+  List<Category> _categories = [];
+  bool _isLoadingCategories = true;
+  String? _categoriesErrorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchCategories(); // Fetch categories when the screen initializes
+  }
+
+  // Function to fetch categories from the API
+  Future<void> _fetchCategories() async {
+    setState(() {
+      _isLoadingCategories = true;
+      _categoriesErrorMessage = null; // Clear previous error messages
+    });
+
+    try {
+      final CategoryListResponse response = await _apiService.getCategories();
+      if (mounted) {
+        setState(() {
+          _categories =
+              response.data ?? []; // Update the list with fetched data
+          _isLoadingCategories = false;
+        });
+        print('Categories fetched successfully: ${_categories.length} items');
+      }
+    } on ErrorResponse catch (e) {
+      if (mounted) {
+        setState(() {
+          _categoriesErrorMessage = e.message;
+          _isLoadingCategories = false;
+        });
+        print('Error fetching categories: ${e.message}');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _categoriesErrorMessage =
+              'Failed to load categories: ${e.toString()}';
+          _isLoadingCategories = false;
+        });
+        print('Unexpected error fetching categories: $e');
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -65,32 +80,9 @@ class _CategoryScreenState extends State<CategoryScreen> {
               ),
               child: _buildSearchBar(), // Search bar for categories
             ),
-            // Build the list of categories with expandable sections
-            ListView.builder(
-              shrinkWrap: true, // Take only as much space as needed
-              physics:
-                  const NeverScrollableScrollPhysics(), // Disable scrolling within this list
-              itemCount: _categories.length,
-              itemBuilder: (context, index) {
-                final category = _categories[index];
-                if (category['subCategories'].isEmpty) {
-                  // Render a simple list tile if no subcategories
-                  return _buildCategoryListItem(
-                    name: category['name'],
-                    productCount: category['productCount'],
-                    imageUrl: category['imageUrl'],
-                  );
-                } else {
-                  // Render an expandable tile if subcategories exist
-                  return _buildExpandableCategoryListItem(
-                    name: category['name'],
-                    productCount: category['productCount'],
-                    imageUrl: category['imageUrl'],
-                    subCategories: category['subCategories'],
-                  );
-                }
-              },
-            ),
+            const SizedBox(height: 20),
+            // Build the list of categories dynamically from API data
+            _buildCategoryList(),
             const SizedBox(height: 20), // Padding at the bottom
           ],
         ),
@@ -103,6 +95,15 @@ class _CategoryScreenState extends State<CategoryScreen> {
     return AppBar(
       backgroundColor: Colors.white,
       elevation: 0,
+      leading: IconButton(
+        icon: const Icon(
+          Icons.arrow_back_ios,
+          color: Colors.black,
+        ), // Back button
+        onPressed: () {
+          Navigator.pop(context); // Pop the current screen off the stack
+        },
+      ),
       title: const Text(
         'Choose a Category',
         style: TextStyle(
@@ -166,126 +167,89 @@ class _CategoryScreenState extends State<CategoryScreen> {
     );
   }
 
-  // Builds a non-expandable category list item
-  Widget _buildCategoryListItem({
-    required String name,
-    required int productCount,
-    required String imageUrl,
-  }) {
-    return Column(
-      children: [
-        ListTile(
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16.0,
-            vertical: 8.0,
-          ),
-          leading: CircleAvatar(
-            radius: 25,
-            backgroundColor: Colors.grey[100],
-            backgroundImage: NetworkImage(imageUrl),
-          ),
-          title: Text(
-            name,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: Colors.black,
-            ),
-          ),
-          subtitle: Text(
-            '$productCount Product available',
-            style: TextStyle(fontSize: 13, color: Colors.grey[600]),
-          ),
-          trailing: const Icon(Icons.keyboard_arrow_down, color: Colors.grey),
-          onTap: () {
-            print('Tapped on $name');
-            // Navigate to products list for this category
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => CategoryDetailScreen(categoryName: name),
-              ),
-            );
-          },
+  // Builds the list of categories (now using fetched data)
+  Widget _buildCategoryList() {
+    if (_isLoadingCategories) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(20.0),
+          child: CircularProgressIndicator(color: primaryPink),
         ),
-        const Divider(
-          height: 1,
-          indent: 70,
-          endIndent: 16,
-        ), // Divider below the item
-      ],
-    );
-  }
-
-  // Builds an expandable category list item with subcategories
-  Widget _buildExpandableCategoryListItem({
-    required String name,
-    required int productCount,
-    required String imageUrl,
-    required List<String> subCategories,
-  }) {
-    return Container(
-      decoration: const BoxDecoration(
-        border: Border(
-          bottom: BorderSide(
-            color: Colors.black12,
-            width: 1,
-          ), // Bottom border for the main tile
-        ),
-      ),
-      child: ExpansionTile(
-        tilePadding: const EdgeInsets.symmetric(
-          horizontal: 16.0,
-          vertical: 8.0,
-        ),
-        leading: CircleAvatar(
-          radius: 25,
-          backgroundColor: Colors.grey[100],
-          backgroundImage: NetworkImage(imageUrl),
-        ),
-        title: Text(
-          name,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: Colors.black,
+      );
+    } else if (_categoriesErrorMessage != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Text(
+            _categoriesErrorMessage!,
+            style: const TextStyle(color: Colors.red, fontSize: 16),
+            textAlign: TextAlign.center,
           ),
         ),
-        subtitle: Text(
-          '$productCount Product available',
-          style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+      );
+    } else if (_categories.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(20.0),
+          child: Text(
+            'No categories found.',
+            style: TextStyle(color: Colors.grey, fontSize: 16),
+            textAlign: TextAlign.center,
+          ),
         ),
-        trailing: const Icon(
-          Icons.keyboard_arrow_down,
-          color: Colors.grey,
-        ), // Default trailing icon
-        // Custom trailing icon builder to change icon on expansion
-        // This is commented out for now to match the image's static arrow down/up
-        // onExpansionChanged: (isExpanded) {
-        //   // You can update state here if you need to change the icon dynamically
-        // },
-        children: subCategories.map((subCategory) {
+      );
+    } else {
+      return ListView.builder(
+        shrinkWrap: true, // Take only as much space as needed
+        physics:
+            const NeverScrollableScrollPhysics(), // Disable scrolling within this list
+        itemCount: _categories.length,
+        itemBuilder: (context, index) {
+          final category = _categories[index];
+          // As the API Category model doesn't include productCount or subCategories,
+          // we simplify to a non-expandable list item.
           return Column(
             children: [
               ListTile(
-                contentPadding: const EdgeInsets.only(
-                  left: 70.0,
-                  right: 16.0,
-                  top: 5,
-                  bottom: 5,
-                ), // Indent subcategories
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16.0,
+                  vertical: 8.0,
+                ),
+                leading: CircleAvatar(
+                  radius: 25,
+                  backgroundColor: Colors.grey[100],
+                  // Placeholder image as Category model does not have an image field
+                  backgroundImage: NetworkImage(
+                    'https://placehold.co/100x100/F0F0F0/000000?text=${category.name?.substring(0, 1) ?? 'C'}',
+                  ),
+                ),
                 title: Text(
-                  subCategory,
-                  style: TextStyle(fontSize: 15, color: Colors.grey[800]),
+                  category.name ?? 'Unknown Category',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black,
+                  ),
+                ),
+                // Display a generic product count or 'N/A'
+                subtitle: Text(
+                  'Approx. 100+ Product available', // Dummy product count
+                  style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                ),
+                trailing: const Icon(
+                  Icons.arrow_forward_ios,
+                  color: Colors.grey,
+                  size: 20,
                 ),
                 onTap: () {
-                  print('Tapped on sub-category: $subCategory');
-                  // Navigate to products list for this sub-category
+                  print('Tapped on ${category.name}');
+                  // Navigate to products list for this category
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) =>
-                          CategoryDetailScreen(categoryName: subCategory),
+                      builder: (context) => CategoryDetailScreen(
+                        categoryName: category.name ?? 'Unknown Category',
+                      ),
                     ),
                   );
                 },
@@ -294,11 +258,11 @@ class _CategoryScreenState extends State<CategoryScreen> {
                 height: 1,
                 indent: 70,
                 endIndent: 16,
-              ), // Divider for sub-items
+              ), // Divider below the item
             ],
           );
-        }).toList(),
-      ),
-    );
+        },
+      );
+    }
   }
 }
