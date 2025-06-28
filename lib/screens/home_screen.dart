@@ -36,6 +36,9 @@ class _HomeScreenState extends State<HomeScreen> {
   int _currentPage = 0;
   Timer? _timer;
 
+  // Cart item count for the badge
+  int _cartItemCount = 0;
+
   // Example banner data (you can replace with your actual banner data)
   final List<Map<String, dynamic>> _banners = [
     {
@@ -72,7 +75,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  // Function to load all data (user, products, categories, brands)
+  // Function to load all data (user, products, categories, brands, and cart count)
   Future<void> _loadAllData() async {
     setState(() {
       _isLoading = true;
@@ -95,6 +98,9 @@ class _HomeScreenState extends State<HomeScreen> {
       final productResponse = await _apiService.getProducts();
       _products = productResponse.data ?? [];
 
+      // 5. Fetch cart item count
+      await _fetchCartItemCount();
+
       print('Home: All data loaded successfully!');
     } on ErrorResponse catch (e) {
       // Handle API specific errors
@@ -112,6 +118,49 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         setState(() {
           _isLoading = false;
+        });
+      }
+    }
+  }
+
+  // Fetches the current total quantity of items in the user's cart
+  Future<void> _fetchCartItemCount() async {
+    if (_loggedInUser?.id == null) {
+      if (mounted) {
+        setState(() {
+          _cartItemCount = 0; // No user logged in, cart is empty
+        });
+      }
+      return;
+    }
+
+    try {
+      // FIX: Use CartListResponse and getCartItems() method
+      final CartListResponse cartResponse = await _apiService.getCartItems();
+      int totalCount = 0;
+      if (cartResponse.data != null) {
+        for (var item in cartResponse.data!) {
+          // FIX: Ensure quantity is safely converted to int
+          totalCount += (item.quantity ?? 0).toInt();
+        }
+      }
+      if (mounted) {
+        setState(() {
+          _cartItemCount = totalCount;
+        });
+      }
+    } on ErrorResponse catch (e) {
+      print('Failed to fetch cart count: ${e.message}');
+      if (mounted) {
+        setState(() {
+          _cartItemCount = 0; // Reset count on error
+        });
+      }
+    } catch (e) {
+      print('An unexpected error occurred while fetching cart count: $e');
+      if (mounted) {
+        setState(() {
+          _cartItemCount = 0; // Reset count on error
         });
       }
     }
@@ -164,6 +213,9 @@ class _HomeScreenState extends State<HomeScreen> {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text(response.message)));
+        // Refresh cart count after successful addition
+        await _fetchCartItemCount();
+
         // Optionally, navigate to cart screen after adding
         Navigator.push(
           context,
@@ -333,20 +385,53 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       actions: <Widget>[
-        // Shopping Cart Icon
-        IconButton(
-          icon: Icon(
-            Icons.shopping_cart_outlined,
-            color: Colors.grey[700],
-            size: 28,
-          ),
-          onPressed: () {
-            print('Shopping Cart Tapped');
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const CartScreen()),
-            );
-          },
+        // Shopping Cart Icon with Badge
+        Stack(
+          children: [
+            IconButton(
+              icon: Icon(
+                Icons.shopping_cart_outlined,
+                color: Colors.grey[700],
+                size: 28,
+              ),
+              onPressed: () {
+                print('Shopping Cart Tapped');
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const CartScreen()),
+                );
+              },
+            ),
+            if (_cartItemCount > 0)
+              Positioned(
+                right: 8,
+                top: 8,
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    color: Colors.red, // Red circle for the count
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: Colors.white,
+                      width: 1.5,
+                    ), // White border for visibility
+                  ),
+                  constraints: const BoxConstraints(
+                    minWidth: 16,
+                    minHeight: 16,
+                  ),
+                  child: Text(
+                    _cartItemCount.toString(),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+          ],
         ),
         // Notification Icon
         IconButton(
