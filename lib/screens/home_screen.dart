@@ -6,6 +6,7 @@ import 'package:elure_app/screens/cart/cart_screen.dart'; // Import CartScreen
 import 'package:elure_app/screens/product/product_detail_screen.dart'; // Import ProductDetailScreen
 import 'package:elure_app/services/api_service.dart'; // Import ApiService
 import 'package:intl/intl.dart'; // Import for currency formatting
+import 'package:elure_app/screens/search_screen.dart'; // Import the new SearchScreen
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -22,7 +23,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final ApiService _apiService = ApiService();
   final LocalStorageService _localStorageService = LocalStorageService();
 
-  List<Product> _products = [];
+  List<Product> _products = []; // These are for "Best Sellers"
   Map<int, Brand> _brandsMap = {}; // To map brand IDs to brand names
   Map<int, Category> _categoriesMap =
       {}; // To map category IDs to category names
@@ -38,6 +39,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Cart item count for the badge
   int _cartItemCount = 0;
+
+  // For Search functionality (now simplified for navigation)
+  final TextEditingController _searchController = TextEditingController();
 
   // Example banner data (you can replace with your actual banner data)
   final List<Map<String, dynamic>> _banners = [
@@ -72,6 +76,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _pageController.dispose();
     _timer?.cancel(); // Cancel timer to prevent memory leaks
+    _searchController.dispose(); // Dispose search controller
     super.dispose();
   }
 
@@ -96,7 +101,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       // 4. Fetch products (assuming these are your "Best Sellers")
       final productResponse = await _apiService.getProducts();
-      _products = productResponse.data ?? [];
+      _products = productResponse.data ?? []; // Store all fetched products
 
       // 5. Fetch cart item count
       await _fetchCartItemCount();
@@ -135,12 +140,10 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     try {
-      // FIX: Use CartListResponse and getCartItems() method
       final CartListResponse cartResponse = await _apiService.getCartItems();
       int totalCount = 0;
       if (cartResponse.data != null) {
         for (var item in cartResponse.data!) {
-          // FIX: Ensure quantity is safely converted to int
           totalCount += (item.quantity ?? 0).toInt();
         }
       }
@@ -451,40 +454,63 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Builds the Search Bar
+  // Builds the Search Bar (now navigates to SearchScreen)
   Widget _buildSearchBar() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: Colors.grey[100], // Light grey background
-        borderRadius: BorderRadius.circular(30), // Rounded corners
-        border: Border.all(color: Colors.grey[200]!), // Light border
-      ),
-      child: Row(
-        children: <Widget>[
-          Icon(Icons.search, color: Colors.grey[600]), // Search icon
-          const SizedBox(width: 10),
-          const Expanded(
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: 'Search',
-                border: InputBorder.none, // No underline
-                isDense: true, // Reduce vertical space
-                contentPadding: EdgeInsets.zero, // Remove internal padding
-              ),
-              style: TextStyle(fontSize: 16),
+    return GestureDetector(
+      onTap: () async {
+        // Navigate to SearchScreen when the search bar is tapped
+        final String? result = await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => SearchScreen(
+              initialSearchQuery: _searchController.text, // Pass current text
             ),
           ),
-          IconButton(
-            icon: Icon(
-              Icons.camera_alt_outlined,
-              color: Colors.grey[600],
-            ), // Camera icon
-            onPressed: () {
-              print('Camera search tapped');
-            },
+        );
+        // If a result (e.g., updated search query) is returned from SearchScreen,
+        // you can update the _searchController text here if desired.
+        if (result != null) {
+          _searchController.text = result;
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: Colors.grey[100], // Light grey background
+          borderRadius: BorderRadius.circular(30), // Rounded corners
+          border: Border.all(color: Colors.grey[200]!), // Light border
+        ),
+        child: AbsorbPointer(
+          // Prevent direct text input on this search bar
+          child: Row(
+            children: <Widget>[
+              Icon(Icons.search, color: Colors.grey[600]), // Search icon
+              const SizedBox(width: 10),
+              Expanded(
+                child: TextField(
+                  controller: _searchController,
+                  decoration: const InputDecoration(
+                    hintText: 'Search',
+                    border: InputBorder.none, // No underline
+                    isDense: true, // Reduce vertical space
+                    contentPadding: EdgeInsets.zero, // Remove internal padding
+                  ),
+                  style: const TextStyle(fontSize: 16),
+                  enabled: false, // Make it not directly editable on HomeScreen
+                ),
+              ),
+              IconButton(
+                icon: Icon(
+                  Icons.camera_alt_outlined,
+                  color: Colors.grey[600],
+                ), // Camera icon
+                onPressed: () {
+                  print('Camera search tapped');
+                },
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -643,15 +669,37 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Builds the grid of products (Best Sellers)
   Widget _buildProductGrid() {
-    if (_isLoading || _products.isEmpty) {
-      // Use the overall loading state
-      return const Center(
+    if (_isLoading) {
+      // Show loading indicator when data is being fetched
+      return const Center(child: CircularProgressIndicator(color: primaryPink));
+    } else if (_errorMessage != null) {
+      // Show error message if data fetching failed
+      return Center(
         child: Text(
-          'No products available.',
-          style: TextStyle(color: Colors.grey, fontSize: 16),
+          _errorMessage!,
+          style: const TextStyle(color: Colors.red, fontSize: 16),
+          textAlign: TextAlign.center,
         ),
       );
     }
+
+    // This grid now just displays the initially loaded best sellers,
+    // as search logic is moved to ProductListScreen
+    final List<Product> productsToDisplay = _products;
+
+    if (productsToDisplay.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(16.0),
+          child: Text(
+            'No products available.',
+            style: TextStyle(color: Colors.grey, fontSize: 16),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
+
     return GridView.builder(
       shrinkWrap: true, // Take only as much space as needed
       physics:
@@ -662,9 +710,9 @@ class _HomeScreenState extends State<HomeScreen> {
         mainAxisSpacing: 15, // Vertical spacing
         childAspectRatio: 0.7, // Aspect ratio of each grid item
       ),
-      itemCount: _products.length, // Use _products list
+      itemCount: productsToDisplay.length, // Use productsToDisplay
       itemBuilder: (context, index) {
-        return _buildProductCard(_products[index]);
+        return _buildProductCard(productsToDisplay[index]);
       },
     );
   }
