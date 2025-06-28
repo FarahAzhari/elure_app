@@ -1,9 +1,10 @@
+import 'package:flutter/material.dart';
+import 'package:elure_app/services/local_storage_service.dart';
 import 'package:elure_app/models/api_models.dart';
+import 'dart:async'; // Import for Timer
 import 'package:elure_app/screens/cart/cart_screen.dart'; // Import CartScreen
 import 'package:elure_app/screens/product/product_detail_screen.dart'; // Import ProductDetailScreen
-import 'package:elure_app/services/api_service.dart';
-import 'package:elure_app/services/local_storage_service.dart';
-import 'package:flutter/material.dart';
+import 'package:elure_app/services/api_service.dart'; // Import ApiService
 import 'package:intl/intl.dart'; // Import for currency formatting
 
 class HomeScreen extends StatefulWidget {
@@ -30,10 +31,45 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _errorMessage; // Overall error message
   User? _loggedInUser; // To store current user data
 
+  // For the banner carousel
+  final PageController _pageController = PageController(initialPage: 0);
+  int _currentPage = 0;
+  Timer? _timer;
+
+  // Example banner data (you can replace with your actual banner data)
+  final List<Map<String, dynamic>> _banners = [
+    {
+      'image':
+          'https://img.freepik.com/premium-vector/anniversary-sale-banner-ads-with-set-skin-care-products-glitterng-background_281653-1359.jpg',
+      'title': 'Huge Summer Sale!',
+      'subtitle': 'Get 50% off on all beauty products',
+    },
+    {
+      'image':
+          'https://i.pinimg.com/736x/36/31/6e/36316e646a53a0f71a0c46388ccc49a0.jpg',
+      'title': 'Discover New Arrivals',
+      'subtitle': 'Fresh collection just landed!',
+    },
+    {
+      'image':
+          'https://d1csarkz8obe9u.cloudfront.net/posterpreviews/nature-cosmetic-product-sale-poster-banner-design-template-28a3a3450d5df1deba865cf54a27a3a6_screen.jpg?ts=1688007268',
+      'title': 'Limited Time Offer',
+      'subtitle': 'Don\'t miss out on exclusive deals!',
+    },
+  ];
+
   @override
   void initState() {
     super.initState();
     _loadAllData(); // Load all necessary data when the screen initializes
+    _startAutoScroll(); // Start auto-scrolling for banners
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    _timer?.cancel(); // Cancel timer to prevent memory leaks
+    super.dispose();
   }
 
   // Function to load all data (user, products, categories, brands)
@@ -79,6 +115,24 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       }
     }
+  }
+
+  // Starts the auto-scrolling for the banners
+  void _startAutoScroll() {
+    _timer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      if (_pageController.hasClients) {
+        if (_currentPage < _banners.length - 1) {
+          _currentPage++;
+        } else {
+          _currentPage = 0; // Loop back to the first page
+        }
+        _pageController.animateToPage(
+          _currentPage,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeInOut,
+        );
+      }
+    });
   }
 
   Future<void> _handleAddToCart(Product product) async {
@@ -198,12 +252,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       _buildSearchBar(),
                       const SizedBox(height: 20),
 
-                      // Horizontal list of filter tags (All Brands, Glowora, etc.)
-                      _buildFilterTags(),
-                      const SizedBox(height: 20),
-
-                      // Promotional Banner
-                      _buildPromotionBanner(),
+                      // Promotional Banner (now a carousel)
+                      _buildPromotionBanner(), // This now contains the carousel logic
                       const SizedBox(height: 30),
 
                       // Categories Section Header
@@ -354,117 +404,81 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Builds the horizontal list of filter tags (now dynamic for brands)
-  Widget _buildFilterTags() {
-    final List<String> tags = ['All Brands'];
-    tags.addAll(
-      _brandsMap.values.map((brand) => brand.name ?? 'Unknown Brand').toList(),
-    );
-
-    // You might want to implement selection logic here to highlight a selected brand
-    // For now, "All Brands" is hardcoded as selected for initial display
-    final int selectedIndex = 0; // Default to "All Brands" selected
-
-    return SizedBox(
-      height: 40, // Fixed height for the horizontal list
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        itemCount: tags.length,
-        itemBuilder: (context, index) {
-          final bool isSelected = index == selectedIndex;
-          return GestureDetector(
-            onTap: () {
-              print('Tapped on filter tag: ${tags[index]}');
-              // Implement actual filtering logic here
-              // setState(() { _selectedFilterTagIndex = index; });
+  // Builds the promotional banner (now includes carousel logic)
+  Widget _buildPromotionBanner() {
+    return Column(
+      children: [
+        SizedBox(
+          height: 180, // Height for the carousel banners
+          child: PageView.builder(
+            controller: _pageController,
+            itemCount: _banners.length,
+            onPageChanged: (int page) {
+              setState(() {
+                _currentPage = page;
+              });
             },
-            child: Container(
-              margin: const EdgeInsets.only(right: 10), // Spacing between tags
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? primaryPink
-                    : Colors.grey[200], // Pink if selected, grey otherwise
-                borderRadius: BorderRadius.circular(20), // Rounded corners
-              ),
-              child: Center(
-                child: Text(
-                  tags[index],
-                  style: TextStyle(
-                    color: isSelected
-                        ? Colors.white
-                        : Colors
-                              .black, // White text if selected, black otherwise
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
+            itemBuilder: (context, index) {
+              final banner = _banners[index];
+              return _buildSimpleBannerItem(
+                banner['image'],
+                banner['title'], // Pass title for printing/debug purposes
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 10),
+        _buildPageIndicator(), // Page indicators (dots)
+      ],
+    );
+  }
+
+  // Individual Banner Item for the Carousel (Simplified to match original static design)
+  Widget _buildSimpleBannerItem(String imageUrl, String title) {
+    return GestureDetector(
+      // Added GestureDetector for tap functionality
+      onTap: () {
+        print('$title banner tapped!');
+        // Implement navigation or action for this banner if needed
+      },
+      child: Container(
+        margin: const EdgeInsets.symmetric(
+          horizontal: 5.0,
+        ), // Space between banners
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          image: DecorationImage(
+            image: NetworkImage(imageUrl),
+            fit: BoxFit.cover,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.2),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
             ),
-          );
-        },
+          ],
+        ),
+        // The image itself will be the primary visual element
       ),
     );
   }
 
-  // Builds the promotional banner
-  Widget _buildPromotionBanner() {
-    return Container(
-      width: double.infinity, // Full width
-      height: 200, // Increased height to prevent overflow in the inner Column
-      decoration: BoxDecoration(
-        color: primaryPink, // Pink background for the banner
-        borderRadius: BorderRadius.circular(20), // Rounded corners
-        image: const DecorationImage(
-          image: NetworkImage(
-            'https://placehold.co/600x200/E91E63/FFFFFF?text=Promotional+Image',
-          ), // Placeholder for product image
-          fit: BoxFit.cover, // Cover the container
-          alignment: Alignment.centerRight, // Align image to the right
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text(
-              '50% Off! Grab\nYour Glow\nToday!',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                height: 1.2, // Line height
-              ),
-            ),
-            const SizedBox(height: 15),
-            ElevatedButton(
-              onPressed: () {
-                print('Shop Now Tapped');
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white, // White button background
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(
-                    20,
-                  ), // Rounded corners for button
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 25,
-                  vertical: 10,
-                ),
-              ),
-              child: Text(
-                'Shop Now',
-                style: TextStyle(
-                  color: primaryPink, // Pink text for button
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+  // Page Indicators (dots) for the carousel
+  Widget _buildPageIndicator() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(_banners.length, (index) {
+        return Container(
+          width: 8.0,
+          height: 8.0,
+          margin: const EdgeInsets.symmetric(horizontal: 4.0),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: _currentPage == index ? primaryPink : Colors.grey[300],
+          ),
+        );
+      }),
     );
   }
 
