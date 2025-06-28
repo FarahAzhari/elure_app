@@ -1,3 +1,4 @@
+import 'package:elure_app/screens/report/history_detail_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:elure_app/models/api_models.dart';
@@ -166,158 +167,170 @@ class _HistoryScreenState extends State<HistoryScreen> {
   Widget _buildHistoryCard(HistoryItem historyItem) {
     final String formattedDate = historyItem.createdAt != null
         ? DateFormat(
-            'MMMM dd, yyyy',
+            'MMMM dd,yyyy',
           ).format(DateTime.parse(historyItem.createdAt!))
         : 'N/A';
     final String totalAmount = _currencyFormatter.format(
       historyItem.total ?? 0,
     );
 
-    return Card(
-      color: Colors.white,
-      margin: const EdgeInsets.only(bottom: 15),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Order ID: ${historyItem.id ?? 'N/A'}',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
+    return GestureDetector(
+      // Wrap with GestureDetector to make it tappable
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => HistoryDetailScreen(historyItem: historyItem),
+          ),
+        );
+      },
+      child: Card(
+        color: Colors.white,
+        margin: const EdgeInsets.only(bottom: 15),
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Order ID: ${historyItem.id ?? 'N/A'}',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
                   ),
-                ),
-                Text(
-                  formattedDate,
-                  style: const TextStyle(fontSize: 14, color: Colors.grey),
-                ),
-              ],
-            ),
-            const Divider(height: 20, thickness: 1),
-            if (historyItem.items != null && historyItem.items!.isNotEmpty)
-              ...historyItem.items!.map((item) {
-                final productName = item.product?.name ?? 'Unknown Product';
-                final quantity = item.quantity ?? 0;
-                final price = item.product?.price ?? 0;
-                // Calculate item total considering discount from CartProduct
-                double itemPrice = price.toDouble();
-                if (item.product?.discount != null &&
-                    item.product!.discount! > 0) {
-                  itemPrice = itemPrice * (1 - (item.product!.discount! / 100));
-                }
-                final itemSubtotal = _currencyFormatter.format(
-                  itemPrice * quantity,
-                );
+                  Text(
+                    formattedDate,
+                    style: const TextStyle(fontSize: 14, color: Colors.grey),
+                  ),
+                ],
+              ),
+              const Divider(height: 20, thickness: 1),
+              if (historyItem.items != null && historyItem.items!.isNotEmpty)
+                ...historyItem.items!.map((item) {
+                  final productName = item.product?.name ?? 'Unknown Product';
+                  final quantity = item.quantity ?? 0;
+                  final price = item.product?.price ?? 0;
+                  // Calculate item total considering discount from CartProduct
+                  double itemPrice = price.toDouble();
+                  if (item.product?.discount != null &&
+                      item.product!.discount! > 0) {
+                    itemPrice =
+                        itemPrice * (1 - (item.product!.discount! / 100));
+                  }
+                  final itemSubtotal = _currencyFormatter.format(
+                    itemPrice * quantity,
+                  );
 
-                String imageUrlToDisplay =
-                    item.product?.imageUrl != null &&
-                        item.product!.imageUrl!.isNotEmpty
-                    ? (item.product!.imageUrl!.startsWith('http')
-                          ? item.product!.imageUrl!
-                          : '$_baseUrl${item.product!.imageUrl!}')
-                    : 'https://placehold.co/50x50/FFC0CB/000000?text=P';
+                  String imageUrlToDisplay =
+                      item.product?.imageUrl != null &&
+                          item.product!.imageUrl!.isNotEmpty
+                      ? (item.product!.imageUrl!.startsWith('http')
+                            ? item.product!.imageUrl!
+                            : '$_baseUrl${item.product!.imageUrl!}')
+                      : 'https://placehold.co/50x50/FFC0CB/000000?text=P';
 
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 5.0),
-                  child: Row(
-                    children: [
-                      // Item Image
-                      Container(
-                        width: 50,
-                        height: 50,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: Image.network(
-                            imageUrlToDisplay,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) =>
-                                Container(
-                                  color: Colors.grey[200],
-                                  child: const Center(
-                                    child: Icon(Icons.broken_image, size: 20),
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 5.0),
+                    child: Row(
+                      children: [
+                        // Item Image
+                        Container(
+                          width: 50,
+                          height: 50,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: Image.network(
+                              imageUrlToDisplay,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  Container(
+                                    color: Colors.grey[200],
+                                    child: const Center(
+                                      child: Icon(Icons.broken_image, size: 20),
+                                    ),
                                   ),
-                                ),
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              productName,
-                              style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w500,
-                                color: Colors.black87,
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                productName,
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.black87,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            Text(
-                              'Qty: $quantity',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: Colors.grey,
+                              Text(
+                                'Qty: $quantity',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                      Text(
-                        itemSubtotal,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black,
+                        Text(
+                          itemSubtotal,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                );
-              }).toList()
-            else
-              const Text(
-                'No items found for this order.',
-                style: TextStyle(
-                  fontStyle: FontStyle.italic,
-                  color: Colors.grey,
-                ),
-              ),
-            const Divider(height: 20, thickness: 1),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
+                      ],
+                    ),
+                  );
+                }).toList()
+              else
                 const Text(
-                  'Total Amount:',
+                  'No items found for this order.',
                   style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
+                    fontStyle: FontStyle.italic,
+                    color: Colors.grey,
                   ),
                 ),
-                Text(
-                  totalAmount,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: primaryPink,
+              const Divider(height: 20, thickness: 1),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Total Amount:',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ],
+                  Text(
+                    totalAmount,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: primaryPink,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
