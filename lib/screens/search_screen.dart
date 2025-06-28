@@ -1,9 +1,10 @@
 import 'package:elure_app/screens/product/product_list_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:elure_app/services/local_storage_service.dart'; // Import LocalStorageService
 
 class SearchScreen extends StatefulWidget {
   final String
-  initialSearchQuery; // To pre-fill the search bar if coming from HomeScreen
+  initialSearchQuery; // Optional: to receive search query from HomeScreen
 
   const SearchScreen({super.key, this.initialSearchQuery = ''});
 
@@ -13,19 +14,17 @@ class SearchScreen extends StatefulWidget {
 
 class _SearchScreenState extends State<SearchScreen> {
   final TextEditingController _searchController = TextEditingController();
+  final LocalStorageService _localStorageService =
+      LocalStorageService(); // Instance of LocalStorageService
 
-  // Placeholder for recent searches (can be made dynamic with local storage later)
-  final List<String> _recentSearches = [
-    'Calvin Klein Eternity EDT Perfume',
-    'Chanel No. 5 Perfume EDP',
-    'Yves Saint Laurent Blouse EDP',
-    'Armani Code Eau de Toilette Refillble',
-  ];
+  List<String> _recentSearches = []; // Now dynamically loaded
 
   final List<String> _trendingSearches = [
-    'Ethereal Charm by Divine Scents',
-    'Moonlit Desire by Midnight Essence',
-    'Rosewood Elixir by Natura Perfumery',
+    'HydraGlow Moisturizer by Lumière Skin',
+    'Velvet Radiance Serum by Bloom Beauty',
+    'CrystalClear Cleanser by PureSkin Lab',
+    'Golden Dew Face Oil by Elixir Botanica',
+    'Silken Touch Primer by Aura Blends',
   ];
 
   @override
@@ -33,6 +32,7 @@ class _SearchScreenState extends State<SearchScreen> {
     super.initState();
     _searchController.text =
         widget.initialSearchQuery; // Set initial query from HomeScreen
+    _loadRecentSearches(); // Load recent searches when the screen initializes
   }
 
   @override
@@ -41,25 +41,42 @@ class _SearchScreenState extends State<SearchScreen> {
     super.dispose();
   }
 
+  // Function to load recent searches from local storage
+  Future<void> _loadRecentSearches() async {
+    final searches = await _localStorageService.getRecentSearches();
+    setState(() {
+      _recentSearches = searches;
+    });
+  }
+
   // Function to navigate to ProductListScreen with the search query
   void _performSearch(String query) {
     if (query.trim().isNotEmpty) {
+      _localStorageService.saveRecentSearch(
+        query.trim(),
+      ); // Save the search query
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) =>
               ProductListScreen(initialSearchQuery: query.trim()),
         ),
-      );
-      // Optionally, you might want to pop this search screen after navigating
-      // if you don't want it in the back stack when the product list is shown.
-      // Navigator.pop(context); // Consider if this is desired UX
+      ).then((_) {
+        // When returning from ProductListScreen, refresh recent searches
+        _loadRecentSearches();
+      });
     } else {
       // Show a message if search query is empty
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter a search term.')),
       );
     }
+  }
+
+  // Function to remove a search query from recent searches
+  Future<void> _removeSearchFromRecent(String queryToRemove) async {
+    await _localStorageService.removeSpecificRecentSearch(queryToRemove);
+    _loadRecentSearches(); // Reload the list to update the UI
   }
 
   @override
@@ -156,12 +173,15 @@ class _SearchScreenState extends State<SearchScreen> {
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 0,
                   vertical: 12.0,
-                ),
+                ), // Adjust vertical padding for centering
                 suffixIcon: IconButton(
                   icon: const Icon(Icons.close, color: Colors.grey),
                   onPressed: () {
                     _searchController.clear();
-                    // Optionally clear recent searches or update suggestions
+                    // When clearing, also refresh recent searches to reflect any changes if recent searches were cleared programmatically
+                    // This specific reload might not be strictly necessary if clear only affects current input,
+                    // but it ensures consistency if we had a clear all button for recent searches on this screen.
+                    // For now, it doesn't harm.
                   },
                 ),
               ),
@@ -215,7 +235,13 @@ class _SearchScreenState extends State<SearchScreen> {
                 style: const TextStyle(fontSize: 16, color: Colors.black87),
               ),
             ),
-            Icon(Icons.arrow_forward_ios, color: Colors.grey[300], size: 16),
+            // NEW: 'x' button to remove the item
+            IconButton(
+              icon: const Icon(Icons.close, color: Colors.grey, size: 20),
+              onPressed: () {
+                _removeSearchFromRecent(searchText); // Call remove function
+              },
+            ),
           ],
         ),
       ),
