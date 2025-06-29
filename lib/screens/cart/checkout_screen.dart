@@ -1,73 +1,98 @@
-import 'package:elure_app/models/api_models.dart'; // Import API models for CheckoutData and CheckoutItem
-import 'package:elure_app/screens/main_navigation_screen.dart';
+import 'package:elure_app/screens/cart/checkout_success_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart'; // For date formatting
+import 'package:elure_app/models/api_models.dart'; // For CartItem, CheckoutData, ErrorResponse
+import 'package:elure_app/services/api_service.dart'; // For ApiService
+import 'package:intl/intl.dart'; // For currency formatting
 
-class CheckoutScreen extends StatelessWidget {
-  final CheckoutData?
-  checkoutData; // Data from the successful checkout API call
+class CheckoutScreen extends StatefulWidget {
+  final List<CartItem> cartItems;
+  final double subtotal; // Subtotal calculated in CartScreen
 
-  const CheckoutScreen({super.key, required this.checkoutData});
+  const CheckoutScreen({super.key, required this.cartItems, required this.subtotal});
 
+  @override
+  State<CheckoutScreen> createState() => _CheckoutScreenState();
+}
+
+class _CheckoutScreenState extends State<CheckoutScreen> {
   static const Color primaryPink = Color(0xFFE91E63);
+  final ApiService _apiService = ApiService();
+
+  // Hardcoded address and payment method as per your request
+  final String _billingAddress = 'Jl. Merdeka No. 45, RT. 03/ RW. 02,\nGambir Subdistrict, Gambir District,\nCentral Jakarta, 10110, Indonesia';
+  final String _deliveryAddress = 'Jl. Merdeka No. 45, RT. 03/ RW. 02,\nGambir Subdistrict, Gambir District,\nCentral Jakarta, 10110, Indonesia';
+  final String _paymentMethod = 'Cash payment on delivery';
+
+  bool _isProcessingCheckout = false;
+
+  Future<void> _handlePayNow() async {
+    setState(() {
+      _isProcessingCheckout = true;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Processing payment...')),
+    );
+
+    try {
+      // Call the checkout API
+      final CheckoutResponse response = await _apiService.checkout();
+
+      if (mounted) {
+        if (response.data != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(response.message)),
+          );
+          // On successful checkout, navigate to the CheckoutSuccessScreen
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(
+              builder: (context) => CheckoutSuccessScreen(checkoutData: response.data),
+            ),
+            (Route<dynamic> route) => false, // Clear all previous routes
+          );
+        } else {
+          // Handle cases where response is successful but data is null (e.g., no order created)
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(response.message)),
+          );
+        }
+      }
+    } on ErrorResponse catch (e) {
+      if (mounted) {
+        String errorMessage = e.message;
+        if (e.errors != null) {
+          // Attempt to parse validation errors if available
+          errorMessage += '\nDetails: ${e.errors!.toJson()}'; // Convert errors to string
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Checkout Error: $errorMessage')),
+        );
+        print('Checkout Error: $errorMessage');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('An unexpected error occurred during checkout: ${e.toString()}')),
+        );
+        print('Unexpected Checkout Error: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessingCheckout = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Check if checkoutData is null (e.g., if navigated directly without data)
-    if (checkoutData == null) {
-      return Scaffold(
-        appBar: _buildAppBar(context),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.info_outline, color: Colors.blueGrey, size: 60),
-                const SizedBox(height: 20),
-                const Text(
-                  'No checkout details available. Please complete a checkout process to see details.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.blueGrey, fontSize: 16),
-                ),
-                const SizedBox(height: 20),
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(context).pushAndRemoveUntil(
-                      MaterialPageRoute(
-                        builder: (context) => const MainNavigationScreen(),
-                      ),
-                      (Route<dynamic> route) => false,
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryPink,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(25),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 30,
-                      vertical: 12,
-                    ),
-                  ),
-                  child: const Text(
-                    'Back to Home',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
-    // Format date if available
-    final String formattedDate = checkoutData?.createdAt != null
-        ? DateFormat(
-            'MMMM dd,yyyy',
-          ).format(DateTime.parse(checkoutData!.createdAt!))
-        : 'N/A';
+    // Initialize NumberFormat for Rupiah (IDR) with dot as thousands separator
+    final NumberFormat currencyFormatter = NumberFormat.currency(
+      locale: 'id_ID', // Indonesian locale
+      symbol: 'Rp', // Rupiah symbol
+      decimalDigits: 0, // No decimal digits for whole rupiah
+    );
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -77,93 +102,76 @@ class CheckoutScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            const SizedBox(height: 20),
-            // Thank you message
-            const Center(
+            const SizedBox(height: 10),
+            Center(
               child: Text(
-                'Thank you, Your order has\nbeen received.',
-                textAlign: TextAlign.center,
+                'Confirm your order',
                 style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.black,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey[800],
                 ),
               ),
             ),
             const SizedBox(height: 30),
 
-            // PDF Receipt and Share Buttons
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: <Widget>[
-                _buildActionButton(
-                  icon: Icons.picture_as_pdf_outlined,
-                  text: 'PDF Receipt',
-                  onTap: () => print('PDF Receipt clicked'),
-                ),
-                const SizedBox(width: 20),
-                _buildActionButton(
-                  icon: Icons.share_outlined,
-                  text: 'Share',
-                  onTap: () => print('Share clicked'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 30),
-
-            // Payment Details Section
-            _buildSectionTitle('Payment Details'),
+            // Order Summary Section
+            _buildSectionTitle('Order Summary'),
             const SizedBox(height: 10),
             _buildDetailCard(
               children: [
+                ...widget.cartItems.map((item) {
+                  final productName = item.product?.name ?? 'Unknown Product';
+                  final quantity = item.quantity ?? 0;
+                  final int originalPricePerUnit = item.product?.price ?? 0;
+                  final int discountPercentage = item.product?.discount ?? 0;
+
+                  double discountedPricePerUnit = originalPricePerUnit.toDouble();
+                  if (discountPercentage > 0) {
+                    discountedPricePerUnit = originalPricePerUnit * (1 - discountPercentage / 100);
+                  }
+
+                  final totalOriginalItemPrice = (originalPricePerUnit * quantity).toDouble();
+                  final totalDiscountedItemPrice = (discountedPricePerUnit * quantity).toDouble();
+
+                  // Format the discounted price per piece
+                  final String formattedPricePerPiece = currencyFormatter.format(discountedPricePerUnit);
+
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8.0),
+                    child: _buildDetailRow(
+                      '$productName x $quantity ($formattedPricePerPiece/pc)', // Updated label to include price per PC
+                      currencyFormatter.format(totalDiscountedItemPrice),
+                      originalValue: (originalPricePerUnit > 0 && discountPercentage > 0)
+                          ? currencyFormatter.format(totalOriginalItemPrice)
+                          : null, // Only pass originalValue if there's a discount
+                      isMultiLine: true,
+                    ),
+                  );
+                }).toList(),
+                const Divider(), // Separator
                 _buildDetailRow(
-                  'Amount',
-                  '\$${checkoutData!.total?.toStringAsFixed(2) ?? '0.00'}',
+                  'Subtotal',
+                  currencyFormatter.format(widget.subtotal),
+                  isBold: true,
                 ),
                 _buildDetailRow(
-                  'Order number',
-                  checkoutData!.id?.toString() ?? 'N/A',
+                  'Shipping Fee',
+                  currencyFormatter.format(0), // Hardcoded 0 for now
+                  isBold: true,
                 ),
-                _buildDetailRow('Date', formattedDate),
+                const Divider(), // Separator
                 _buildDetailRow(
-                  'Payment method',
-                  'Cash payment on delivery',
-                ), // Static as per original design
+                  'Total Amount',
+                  currencyFormatter.format(widget.subtotal), // Assuming no shipping fee for now
+                  isBold: true,
+                  isPrimaryPink: true,
+                ),
               ],
             ),
             const SizedBox(height: 30),
 
-            // Order Details Section
-            _buildSectionTitle('Order Details'),
-            const SizedBox(height: 10),
-            _buildDetailCard(
-              children:
-                  checkoutData!.items?.map((item) {
-                    final productName = item.product?.name ?? 'Unknown Product';
-                    final quantity = item.quantity ?? 0;
-                    final price = item.product?.price ?? 0;
-                    final totalItemPrice = (quantity * price).toStringAsFixed(
-                      2,
-                    );
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 8.0),
-                      child: _buildDetailRow(
-                        '$productName x $quantity',
-                        '\$$totalItemPrice',
-                        isMultiLine: true,
-                      ),
-                    );
-                  }).toList() ??
-                  [
-                    const Text(
-                      'No order items found.',
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  ],
-            ),
-            const SizedBox(height: 30),
-
-            // Addresses Section (static placeholder as API does not provide address details in CheckoutData)
+            // Addresses Section
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
@@ -171,11 +179,9 @@ class CheckoutScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildSectionTitle('Billing address'),
+                      _buildSectionTitle('Billing Address'),
                       const SizedBox(height: 10),
-                      _buildAddressCard(
-                        'Asif Asif IQBAL\n12 Rue Mohamed V\nApartment 3B\nCasablanca\nMAAZI',
-                      ),
+                      _buildAddressCard(_billingAddress),
                     ],
                   ),
                 ),
@@ -184,55 +190,71 @@ class CheckoutScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildSectionTitle('Delivery address'),
+                      _buildSectionTitle('Delivery Address'),
                       const SizedBox(height: 10),
-                      _buildAddressCard(
-                        'Asif Asif IQBAL\n12 Rue Mohamed V\nApartment 3B\nCasablanca\nMAAZI',
-                      ),
+                      _buildAddressCard(_deliveryAddress),
                     ],
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 40), // Space before bottom button
-            // Back to Home Button
+            const SizedBox(height: 30),
+
+            // Payment Method Section
+            _buildSectionTitle('Payment Method'),
+            const SizedBox(height: 10),
+            _buildDetailCard(
+              children: [
+                _buildDetailRow(
+                  'Method',
+                  _paymentMethod,
+                ),
+                // Add an option to change payment method if desired
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () => print('Change payment method tapped'),
+                    child: const Text(
+                      'Change',
+                      style: TextStyle(color: primaryPink, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 40),
+
+            // Pay Now Button
             SizedBox(
               width: double.infinity,
               height: 60,
               child: ElevatedButton(
-                onPressed: () {
-                  // Pop all routes until the HomeScreen is reached
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(
-                      builder: (context) => const MainNavigationScreen(),
-                    ),
-                    (Route<dynamic> route) => false,
-                  );
-                },
+                onPressed: _isProcessingCheckout ? null : _handlePayNow,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: primaryPink,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(30),
                   ),
                 ),
-                child: const Text(
-                  'Back to Home',
-                  style: TextStyle(
-                    fontSize: 18,
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                child: _isProcessingCheckout
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text(
+                        'Pay Now',
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
               ),
             ),
-            const SizedBox(height: 20), // Padding for bottom of screen
+            const SizedBox(height: 20),
           ],
         ),
       ),
     );
   }
 
-  // Custom AppBar for the Checkout Screen
   PreferredSizeWidget _buildAppBar(BuildContext context) {
     return AppBar(
       backgroundColor: Colors.white,
@@ -240,11 +262,11 @@ class CheckoutScreen extends StatelessWidget {
       leading: IconButton(
         icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
         onPressed: () {
-          Navigator.pop(context); // Go back to the previous screen (CartScreen)
+          Navigator.pop(context); // Go back to CartScreen
         },
       ),
       title: const Text(
-        'Checkout details', // Changed title to reflect "Checkout"
+        'Checkout',
         style: TextStyle(
           color: Colors.black,
           fontSize: 20,
@@ -254,13 +276,9 @@ class CheckoutScreen extends StatelessWidget {
       centerTitle: true,
       actions: <Widget>[
         IconButton(
-          icon: Icon(
-            Icons.notifications_none_outlined,
-            color: Colors.grey[700],
-            size: 28,
-          ),
+          icon: Icon(Icons.notifications_none_outlined, color: Colors.grey[700], size: 28),
           onPressed: () {
-            print('Notifications Tapped from Checkout Screen');
+            print('Notifications Tapped from Checkout Confirmation');
           },
         ),
         const SizedBox(width: 10),
@@ -268,39 +286,6 @@ class CheckoutScreen extends StatelessWidget {
     );
   }
 
-  // Helper widget for PDF Receipt and Share buttons
-  Widget _buildActionButton({
-    required IconData icon,
-    required String text,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        decoration: BoxDecoration(
-          color: Colors.grey[100],
-          borderRadius: BorderRadius.circular(30),
-          border: Border.all(color: Colors.grey[300]!),
-        ),
-        child: Row(
-          children: <Widget>[
-            Icon(icon, color: primaryPink),
-            const SizedBox(width: 8),
-            Text(
-              text,
-              style: const TextStyle(
-                color: Colors.black,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // Helper widget for section titles (e.g., Payment Details, Order Details)
   Widget _buildSectionTitle(String title) {
     return Text(
       title,
@@ -312,7 +297,6 @@ class CheckoutScreen extends StatelessWidget {
     );
   }
 
-  // Helper widget for a card containing details (Payment Details, Order Details)
   Widget _buildDetailCard({required List<Widget> children}) {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -331,37 +315,46 @@ class CheckoutScreen extends StatelessWidget {
     );
   }
 
-  // Helper widget for a single row of detail (e.g., Amount: $960.00)
-  Widget _buildDetailRow(
-    String label,
-    String value, {
-    bool isMultiLine = false,
-  }) {
+  Widget _buildDetailRow(String label, String value, {String? originalValue, bool isMultiLine = false, bool isBold = false, bool isPrimaryPink = false}) {
     return Padding(
-      padding: isMultiLine
-          ? const EdgeInsets.symmetric(vertical: 5.0)
-          : const EdgeInsets.only(bottom: 8.0),
+      padding: isMultiLine ? const EdgeInsets.symmetric(vertical: 5.0) : const EdgeInsets.only(bottom: 8.0),
       child: Row(
-        crossAxisAlignment: isMultiLine
-            ? CrossAxisAlignment.start
-            : CrossAxisAlignment.center,
+        crossAxisAlignment: isMultiLine ? CrossAxisAlignment.start : CrossAxisAlignment.center,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: <Widget>[
           Flexible(
             child: Text(
               label,
-              style: TextStyle(fontSize: 16, color: Colors.grey[700]),
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[700],
+                fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+              ),
             ),
           ),
           Flexible(
-            child: Text(
-              value,
-              textAlign: TextAlign.right,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Colors.black,
-              ),
+            child: Column( // Use Column for value part to stack original and discounted prices
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                if (originalValue != null && originalValue.isNotEmpty)
+                  Text(
+                    originalValue,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey[600],
+                      decoration: TextDecoration.lineThrough, // Strikethrough for original price
+                    ),
+                  ),
+                Text(
+                  value,
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
+                    color: isPrimaryPink ? primaryPink : Colors.black,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -369,7 +362,6 @@ class CheckoutScreen extends StatelessWidget {
     );
   }
 
-  // Helper widget for address cards
   Widget _buildAddressCard(String address) {
     return Container(
       padding: const EdgeInsets.all(15),
