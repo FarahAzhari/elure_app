@@ -66,9 +66,9 @@ class _BrandDetailScreenState extends State<BrandDetailScreen> {
 
         // Filter by product name, description, or category name
         return (product.name?.toLowerCase().contains(query) ?? false) ||
-            (product.description?.toLowerCase().contains(query) ?? false) ||
-            (categoryName?.toLowerCase().contains(query) ??
-                false); // Safely check category name
+               (product.description?.toLowerCase().contains(query) ?? false) ||
+               (categoryName?.toLowerCase().contains(query) ??
+                   false); // Safely check category name
       }).toList();
     });
   }
@@ -391,7 +391,7 @@ class _BrandDetailScreenState extends State<BrandDetailScreen> {
           crossAxisSpacing: 15, // Horizontal spacing
           mainAxisSpacing: 15, // Vertical spacing
           childAspectRatio:
-              0.75, // Aspect ratio of each grid item (adjusted to fit product info)
+              0.65, // Adjusted aspect ratio to make cards taller for stacked price display
         ),
         itemCount: _filteredProducts.length, // Use filtered list
         itemBuilder: (context, index) {
@@ -444,8 +444,8 @@ class _BrandDetailScreenState extends State<BrandDetailScreen> {
 
     final String displayDiscount =
         (productDiscount != null && productDiscount > 0)
-        ? '${productDiscount.toStringAsFixed(0)}%' // Display as percentage string
-        : '0%';
+            ? '${productDiscount.toStringAsFixed(0)}%' // Display as percentage string
+            : '0%';
 
     // Get brand name from the _brandsMap (using product.brandId)
     // This explicitly uses _brandsMap, resolving the warning.
@@ -597,27 +597,26 @@ class _BrandDetailScreenState extends State<BrandDetailScreen> {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 5),
-                  Row(
+                  // Modified this section to display prices in a Column
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start, // Align prices to the left
                     children: [
                       if (productPrice != null &&
                           productDiscount != null &&
                           productDiscount >
                               0) // Show original price only if different from current
-                        Padding(
-                          padding: const EdgeInsets.only(right: 8.0),
-                          child: Text(
-                            displayOriginalPrice,
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey[600],
-                              decoration: TextDecoration
-                                  .lineThrough, // Strikethrough for original price
-                            ),
+                        Text(
+                          displayOriginalPrice,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                            decoration: TextDecoration
+                                .lineThrough, // Strikethrough for original price
                           ),
                         ),
                       Text(
                         displayCurrentPrice,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                           color: primaryPink, // Pink for current price
