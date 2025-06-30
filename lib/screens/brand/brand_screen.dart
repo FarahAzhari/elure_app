@@ -19,12 +19,16 @@ class _BrandScreenState extends State<BrandScreen> {
   final ApiService _apiService = ApiService();
 
   // State variables for brands and product counts
-  List<Brand> _brands = [];
+  List<Brand> _brands = []; // Stores all brands
+  List<Brand> _filteredBrands = []; // Stores brands filtered by search query
   Map<int, int> _productsCountMap = {}; // Maps brandId to product count
 
   // Combined loading state for initial data
   bool _isLoadingInitialData = true;
   String? _initialDataErrorMessage;
+
+  // Controller for the search input field
+  final TextEditingController _searchController = TextEditingController();
 
   // Lottie animation URL to be used for all brand icons
   // You can replace this with any Lottie animation URL you prefer from LottieFiles.com
@@ -35,6 +39,26 @@ class _BrandScreenState extends State<BrandScreen> {
   void initState() {
     super.initState();
     _fetchInitialData(); // Fetch all necessary data when the screen initializes
+    _searchController.addListener(
+      _filterBrands,
+    ); // Listen for search input changes
+  }
+
+  @override
+  void dispose() {
+    _searchController.removeListener(_filterBrands); // Remove listener
+    _searchController.dispose(); // Dispose the controller
+    super.dispose();
+  }
+
+  // Function to filter brands based on the search query
+  void _filterBrands() {
+    final String query = _searchController.text.toLowerCase();
+    setState(() {
+      _filteredBrands = _brands.where((brand) {
+        return (brand.name?.toLowerCase().contains(query) ?? false);
+      }).toList();
+    });
   }
 
   // Function to fetch all initial data (brands and products)
@@ -54,6 +78,7 @@ class _BrandScreenState extends State<BrandScreen> {
         setState(() {
           _isLoadingInitialData = false;
         });
+        _filterBrands(); // After fetching, filter to show all initially
       }
     } on ErrorResponse catch (e) {
       if (mounted) {
@@ -230,15 +255,6 @@ class _BrandScreenState extends State<BrandScreen> {
     return AppBar(
       backgroundColor: Colors.white,
       elevation: 0,
-      leading: IconButton(
-        icon: const Icon(
-          Icons.arrow_back_ios,
-          color: Colors.black,
-        ), // Back button
-        onPressed: () {
-          Navigator.pop(context); // Pop the current screen off the stack
-        },
-      ),
       title: const Text(
         'Brands',
         style: TextStyle(
@@ -277,15 +293,16 @@ class _BrandScreenState extends State<BrandScreen> {
         children: <Widget>[
           Icon(Icons.search, color: Colors.grey[600]), // Search icon
           const SizedBox(width: 10),
-          const Expanded(
+          Expanded(
             child: TextField(
-              decoration: InputDecoration(
-                hintText: 'Search',
+              controller: _searchController, // Connect controller
+              decoration: const InputDecoration(
+                hintText: 'Search brands...', // Updated hint text
                 border: InputBorder.none, // No underline
                 isDense: true, // Reduce vertical space
                 contentPadding: EdgeInsets.zero, // Remove internal padding
               ),
-              style: TextStyle(fontSize: 16),
+              style: const TextStyle(fontSize: 16),
             ),
           ),
           IconButton(
@@ -335,25 +352,39 @@ class _BrandScreenState extends State<BrandScreen> {
 
   // Builds the list of brands (now using fetched data and Lottie animation)
   Widget _buildBrandList() {
-    if (_brands.isEmpty) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(20.0),
-          child: Text(
-            'No brands found.',
-            style: TextStyle(color: Colors.grey, fontSize: 16),
-            textAlign: TextAlign.center,
+    if (_filteredBrands.isEmpty) {
+      if (_brands.isEmpty && _initialDataErrorMessage == null) {
+        return const Center(
+          child: Padding(
+            padding: EdgeInsets.all(20.0),
+            child: Text(
+              'No brands found.',
+              style: TextStyle(color: Colors.grey, fontSize: 16),
+              textAlign: TextAlign.center,
+            ),
           ),
-        ),
-      );
+        );
+      } else if (_searchController.text.isNotEmpty) {
+        return const Center(
+          child: Padding(
+            padding: EdgeInsets.all(20.0),
+            child: Text(
+              'No brands match your search.',
+              style: TextStyle(color: Colors.grey, fontSize: 16),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        );
+      }
+      return const SizedBox.shrink(); // Should not be reached if previous checks cover
     } else {
       return ListView.builder(
         shrinkWrap: true, // Take only as much space as needed
         physics:
             const NeverScrollableScrollPhysics(), // Disable scrolling within this list
-        itemCount: _brands.length,
+        itemCount: _filteredBrands.length,
         itemBuilder: (context, index) {
-          final brand = _brands[index];
+          final brand = _filteredBrands[index]; // Use the filtered list
           // Get product count for the current brand, default to 0 if not found
           final int productCount = _productsCountMap[brand.id] ?? 0;
           return Column(
