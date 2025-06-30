@@ -96,7 +96,7 @@ class _BrandDetailScreenState extends State<BrandDetailScreen> {
       if (mounted) {
         setState(() {
           _initialDataErrorMessage = _initialDataErrorMessage != null
-              ? '${_initialDataErrorMessage}\nCategories: ${e.message}'
+              ? '$_initialDataErrorMessage\nCategories: ${e.message}'
               : 'Categories: ${e.message}';
         });
       }
@@ -105,7 +105,7 @@ class _BrandDetailScreenState extends State<BrandDetailScreen> {
       if (mounted) {
         setState(() {
           _initialDataErrorMessage = _initialDataErrorMessage != null
-              ? '${_initialDataErrorMessage}\nCategories: ${e.toString()}'
+              ? '$_initialDataErrorMessage\nCategories: ${e.toString()}'
               : 'Categories: ${e.toString()}';
         });
       }
@@ -126,7 +126,7 @@ class _BrandDetailScreenState extends State<BrandDetailScreen> {
       if (mounted) {
         setState(() {
           _initialDataErrorMessage = _initialDataErrorMessage != null
-              ? '${_initialDataErrorMessage}\nBrands: ${e.message}'
+              ? '$_initialDataErrorMessage\nBrands: ${e.message}'
               : 'Brands: ${e.message}';
         });
       }
@@ -135,7 +135,7 @@ class _BrandDetailScreenState extends State<BrandDetailScreen> {
       if (mounted) {
         setState(() {
           _initialDataErrorMessage = _initialDataErrorMessage != null
-              ? '${_initialDataErrorMessage}\nBrands: ${e.toString()}'
+              ? '$_initialDataErrorMessage\nBrands: ${e.toString()}'
               : 'Brands: ${e.toString()}';
         });
       }
@@ -164,7 +164,7 @@ class _BrandDetailScreenState extends State<BrandDetailScreen> {
       if (mounted) {
         setState(() {
           _initialDataErrorMessage = _initialDataErrorMessage != null
-              ? '${_initialDataErrorMessage}\nProducts: ${e.message}'
+              ? '$_initialDataErrorMessage\nProducts: ${e.message}'
               : 'Products: ${e.message}';
         });
         print('BrandDetail: Error fetching products: ${e.message}');
@@ -173,7 +173,7 @@ class _BrandDetailScreenState extends State<BrandDetailScreen> {
       if (mounted) {
         setState(() {
           _initialDataErrorMessage = _initialDataErrorMessage != null
-              ? '${_initialDataErrorMessage}\nProducts: ${e.toString()}'
+              ? '$_initialDataErrorMessage\nProducts: ${e.toString()}'
               : 'Products: ${e.toString()}';
         });
         print('BrandDetail: Unexpected error fetching products: $e');
@@ -209,24 +209,32 @@ class _BrandDetailScreenState extends State<BrandDetailScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: _buildAppBar(context), // Custom App Bar for this screen
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16.0,
-                vertical: 10.0,
+      body: RefreshIndicator(
+        // Added RefreshIndicator here
+        onRefresh:
+            _fetchInitialData, // Calls _fetchInitialData on pull-to-refresh
+        color: primaryPink, // Customize the refresh indicator color
+        child: SingleChildScrollView(
+          physics:
+              const AlwaysScrollableScrollPhysics(), // Important for RefreshIndicator
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16.0,
+                  vertical: 10.0,
+                ),
+                child: _buildSearchBar(), // Search bar
               ),
-              child: _buildSearchBar(), // Search bar
-            ),
-            const SizedBox(height: 20),
-            // Grid of products for the selected brand
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: _buildProductGrid(),
-            ),
-            const SizedBox(height: 20), // Padding at the bottom
-          ],
+              const SizedBox(height: 20),
+              // Grid of products for the selected brand
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: _buildProductGrid(),
+              ),
+              const SizedBox(height: 20), // Padding at the bottom
+            ],
+          ),
         ),
       ),
     );
