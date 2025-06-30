@@ -1,9 +1,9 @@
-import 'package:elure_app/screens/report/history_detail_screen.dart';
-import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:elure_app/models/api_models.dart';
+import 'package:elure_app/screens/report/history_detail_screen.dart';
 import 'package:elure_app/services/api_service.dart';
 import 'package:elure_app/services/local_storage_service.dart';
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -99,33 +99,54 @@ class _HistoryScreenState extends State<HistoryScreen> {
             );
           } else if (snapshot.hasData) {
             final List<HistoryItem> history = snapshot.data!.data ?? [];
-            if (history.isEmpty) {
-              return const Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.shopping_bag_outlined,
-                      size: 80,
-                      color: Colors.grey,
-                    ),
-                    SizedBox(height: 20),
-                    Text(
-                      'No order history found.',
-                      style: TextStyle(fontSize: 20, color: Colors.grey),
-                    ),
-                  ],
-                ),
-              );
-            }
-
-            return ListView.builder(
-              padding: const EdgeInsets.all(16.0),
-              itemCount: history.length,
-              itemBuilder: (context, index) {
-                final item = history[index];
-                return _buildHistoryCard(item);
+            return RefreshIndicator(
+              // Added RefreshIndicator here
+              onRefresh: () async {
+                setState(() {
+                  _historyFuture =
+                      _fetchHistory(); // Re-fetch data on pull-to-refresh
+                });
+                await _historyFuture; // Wait for the future to complete
               },
+              color: primaryPink, // Customize the refresh indicator color
+              child: history.isEmpty
+                  ? ListView(
+                      // Use ListView to ensure RefreshIndicator works even when empty
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: const [
+                        SizedBox(
+                          height: 100,
+                        ), // Add some spacing for better appearance
+                        Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.shopping_bag_outlined,
+                                size: 80,
+                                color: Colors.grey,
+                              ),
+                              SizedBox(height: 20),
+                              Text(
+                                'No order history found.',
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.all(16.0),
+                      itemCount: history.length,
+                      itemBuilder: (context, index) {
+                        final item = history[index];
+                        return _buildHistoryCard(item);
+                      },
+                    ),
             );
           } else {
             return const Center(child: Text('No history data available.'));
@@ -298,7 +319,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       ],
                     ),
                   );
-                }).toList()
+                })
               else
                 const Text(
                   'No items found for this order.',
