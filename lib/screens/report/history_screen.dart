@@ -19,7 +19,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
   final ApiService _apiService = ApiService();
   final LocalStorageService _localStorageService = LocalStorageService();
 
-  late Future<HistoryListResponse> _historyFuture;
+  // Store all fetched history items
+  List<HistoryItem> _allHistoryItems = [];
+  // Store currently displayed (filtered) history items
+  List<HistoryItem> _filteredHistoryItems = [];
+  // Controller for the search input field
+  final TextEditingController _searchController = TextEditingController();
+
+  bool _isLoading = true;
+  String? _errorMessage;
 
   final NumberFormat _currencyFormatter = NumberFormat.currency(
     locale: 'id_ID',
@@ -30,21 +38,72 @@ class _HistoryScreenState extends State<HistoryScreen> {
   @override
   void initState() {
     super.initState();
-    _historyFuture = _fetchHistory();
+    _fetchHistory();
+    _searchController.addListener(
+      _filterHistory,
+    ); // Listen for search input changes
   }
 
-  Future<HistoryListResponse> _fetchHistory() async {
+  @override
+  void dispose() {
+    _searchController.removeListener(_filterHistory); // Remove listener
+    _searchController.dispose(); // Dispose the controller
+    super.dispose();
+  }
+
+  // Function to fetch history and populate lists
+  Future<void> _fetchHistory() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
     try {
-      // Check if user is logged in before attempting to fetch history
       final user = await _localStorageService.getUserData();
       if (user == null || user.id == null) {
         throw Exception('Please log in to view your transaction history.');
       }
-      return await _apiService.getTransactionHistory();
+      final response = await _apiService.getTransactionHistory();
+      if (mounted) {
+        setState(() {
+          _allHistoryItems = response.data ?? [];
+          _isLoading = false;
+        });
+        _filterHistory(); // Apply initial filter (empty query shows all)
+      }
     } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString().replaceFirst('Exception: ', '');
+          _isLoading = false;
+        });
+      }
       print('Error fetching history: $e');
-      return Future.error(e);
     }
+  }
+
+  // Function to filter history items based on the search query
+  void _filterHistory() {
+    final String query = _searchController.text.toLowerCase();
+    setState(() {
+      _filteredHistoryItems = _allHistoryItems.where((historyItem) {
+        // Search by Order ID
+        final String orderIdString = historyItem.id?.toString() ?? '';
+        if (orderIdString.contains(query)) {
+          return true;
+        }
+
+        // Search by Product Name within the order items
+        if (historyItem.items != null) {
+          for (var item in historyItem.items!) {
+            if (item.product?.name?.toLowerCase().contains(query) ?? false) {
+              return true;
+            }
+          }
+        }
+        return false;
+      }).toList();
+    });
   }
 
   @override
@@ -52,32 +111,23 @@ class _HistoryScreenState extends State<HistoryScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: _buildAppBar(context),
-      body: FutureBuilder<HistoryListResponse>(
-        future: _historyFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(color: primaryPink),
-            );
-          } else if (snapshot.hasError) {
-            return Center(
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: primaryPink))
+          : _errorMessage != null
+          ? Center(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      'Error: ${snapshot.error.toString().replaceFirst('Exception: ', '')}',
+                      'Error: $_errorMessage',
                       textAlign: TextAlign.center,
                       style: const TextStyle(color: Colors.red, fontSize: 16),
                     ),
                     const SizedBox(height: 20),
                     ElevatedButton(
-                      onPressed: () {
-                        setState(() {
-                          _historyFuture = _fetchHistory(); // Retry
-                        });
-                      },
+                      onPressed: _fetchHistory, // Retry
                       style: ElevatedButton.styleFrom(
                         backgroundColor: primaryPink,
                         shape: RoundedRectangleBorder(
@@ -96,63 +146,67 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   ],
                 ),
               ),
-            );
-          } else if (snapshot.hasData) {
-            final List<HistoryItem> history = snapshot.data!.data ?? [];
-            return RefreshIndicator(
-              // Added RefreshIndicator here
-              onRefresh: () async {
-                setState(() {
-                  _historyFuture =
-                      _fetchHistory(); // Re-fetch data on pull-to-refresh
-                });
-                await _historyFuture; // Wait for the future to complete
-              },
+            )
+          : RefreshIndicator(
+              onRefresh: _fetchHistory, // Re-fetch data on pull-to-refresh
               color: primaryPink, // Customize the refresh indicator color
-              child: history.isEmpty
-                  ? ListView(
-                      // Use ListView to ensure RefreshIndicator works even when empty
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      children: const [
-                        SizedBox(
-                          height: 100,
-                        ), // Add some spacing for better appearance
-                        Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16.0,
+                      vertical: 10.0,
+                    ),
+                    child: _buildSearchBar(), // Search bar
+                  ),
+                  Expanded(
+                    child: _filteredHistoryItems.isEmpty
+                        ? ListView(
+                            // Use ListView to ensure RefreshIndicator works even when empty
+                            physics: const AlwaysScrollableScrollPhysics(),
                             children: [
-                              Icon(
-                                Icons.shopping_bag_outlined,
-                                size: 80,
-                                color: Colors.grey,
+                              SizedBox(
+                                height:
+                                    MediaQuery.of(context).size.height *
+                                    0.2, // Adjust height
                               ),
-                              SizedBox(height: 20),
-                              Text(
-                                'No order history found.',
-                                style: TextStyle(
-                                  fontSize: 20,
-                                  color: Colors.grey,
+                              Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.shopping_bag_outlined,
+                                      size: 80,
+                                      color: Colors.grey[400], // Lighter grey
+                                    ),
+                                    const SizedBox(height: 20),
+                                    Text(
+                                      _searchController.text.isNotEmpty
+                                          ? 'No orders match your search.'
+                                          : 'No order history found.',
+                                      style: TextStyle(
+                                        fontSize: 20,
+                                        color: Colors.grey[600], // Darker grey
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
+                          )
+                        : ListView.builder(
+                            padding: const EdgeInsets.all(16.0),
+                            itemCount: _filteredHistoryItems.length,
+                            itemBuilder: (context, index) {
+                              final item = _filteredHistoryItems[index];
+                              return _buildHistoryCard(item);
+                            },
                           ),
-                        ),
-                      ],
-                    )
-                  : ListView.builder(
-                      padding: const EdgeInsets.all(16.0),
-                      itemCount: history.length,
-                      itemBuilder: (context, index) {
-                        final item = history[index];
-                        return _buildHistoryCard(item);
-                      },
-                    ),
-            );
-          } else {
-            return const Center(child: Text('No history data available.'));
-          }
-        },
-      ),
+                  ),
+                ],
+              ),
+            ),
     );
   }
 
@@ -182,6 +236,46 @@ class _HistoryScreenState extends State<HistoryScreen> {
         ),
         const SizedBox(width: 10),
       ],
+    );
+  }
+
+  // Builds the Search Bar with consistent design
+  Widget _buildSearchBar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.grey[100], // Light grey background
+        borderRadius: BorderRadius.circular(30), // Rounded corners
+        border: Border.all(color: Colors.grey[200]!), // Light border
+      ),
+      child: Row(
+        children: <Widget>[
+          Icon(Icons.search, color: Colors.grey[600]), // Search icon
+          const SizedBox(width: 10),
+          Expanded(
+            child: TextField(
+              controller: _searchController, // Connect controller
+              decoration: const InputDecoration(
+                hintText: 'Search by Order ID or Product Name...', // Hint text
+                border: InputBorder.none, // No underline
+                isDense: true, // Reduce vertical space
+                contentPadding: EdgeInsets.zero, // Remove internal padding
+              ),
+              style: const TextStyle(fontSize: 16),
+            ),
+          ),
+          // Camera icon for visual consistency with other search bars
+          IconButton(
+            icon: Icon(
+              Icons.camera_alt_outlined,
+              color: Colors.grey[600],
+            ), // Camera icon
+            onPressed: () {
+              print('Camera search tapped');
+            },
+          ),
+        ],
+      ),
     );
   }
 
