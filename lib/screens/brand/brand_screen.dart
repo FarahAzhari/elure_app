@@ -89,7 +89,7 @@ class _BrandScreenState extends State<BrandScreen> {
       if (mounted) {
         // Append error message to initial data error
         _initialDataErrorMessage = _initialDataErrorMessage != null
-            ? '${_initialDataErrorMessage}\nBrands: ${e.message}'
+            ? '$_initialDataErrorMessage\nBrands: ${e.message}'
             : 'Brands: ${e.message}';
         print('Error fetching brands: ${e.message}');
       }
@@ -97,7 +97,7 @@ class _BrandScreenState extends State<BrandScreen> {
       if (mounted) {
         // Append error message to initial data error
         _initialDataErrorMessage = _initialDataErrorMessage != null
-            ? '${_initialDataErrorMessage}\nBrands: ${e.toString()}'
+            ? '$_initialDataErrorMessage\nBrands: ${e.toString()}'
             : 'Brands: ${e.toString()}';
         print('Unexpected error fetching brands: $e');
       }
@@ -128,7 +128,7 @@ class _BrandScreenState extends State<BrandScreen> {
       if (mounted) {
         // Append error message to initial data error
         _initialDataErrorMessage = _initialDataErrorMessage != null
-            ? '${_initialDataErrorMessage}\nProducts: ${e.message}'
+            ? '$_initialDataErrorMessage\nProducts: ${e.message}'
             : 'Products: ${e.message}';
         print('Error fetching products for count: ${e.message}');
       }
@@ -136,7 +136,7 @@ class _BrandScreenState extends State<BrandScreen> {
       if (mounted) {
         // Append error message to initial data error
         _initialDataErrorMessage = _initialDataErrorMessage != null
-            ? '${_initialDataErrorMessage}\nProducts: ${e.toString()}'
+            ? '$_initialDataErrorMessage\nProducts: ${e.toString()}'
             : 'Products: ${e.toString()}';
         print('Unexpected error fetching products for count: $e');
       }
@@ -148,32 +148,80 @@ class _BrandScreenState extends State<BrandScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: _buildAppBar(context), // Custom AppBar for brand screen
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16.0,
-                vertical: 10.0,
+      body: _isLoadingInitialData
+          ? const Center(child: CircularProgressIndicator(color: primaryPink))
+          : _initialDataErrorMessage != null
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      color: Colors.red,
+                      size: 60,
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      _initialDataErrorMessage!,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.red, fontSize: 16),
+                    ),
+                    const SizedBox(height: 20),
+                    ElevatedButton(
+                      onPressed: _fetchInitialData,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryPink,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(25),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 10,
+                        ),
+                      ),
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
               ),
-              child: _buildSearchBar(), // Search bar for brands
+            )
+          : RefreshIndicator(
+              // Added RefreshIndicator here
+              onRefresh:
+                  _fetchInitialData, // Calls _fetchInitialData on pull-to-refresh
+              color: primaryPink, // Customize the refresh indicator color
+              child: SingleChildScrollView(
+                physics:
+                    const AlwaysScrollableScrollPhysics(), // Important for RefreshIndicator in case content is small
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16.0,
+                        vertical: 10.0,
+                      ),
+                      child: _buildSearchBar(), // Search bar for brands
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Section Header for Brands List
+                    _buildSectionHeader(
+                      'All Brands',
+                      null,
+                    ), // "See All" not needed as it's the main list
+                    const SizedBox(height: 15),
+
+                    // List of Brands dynamically from API data
+                    _buildBrandList(),
+                    const SizedBox(height: 20), // Padding at the bottom
+                  ],
+                ),
+              ),
             ),
-            const SizedBox(height: 20),
-
-            // Section Header for Brands List
-            _buildSectionHeader(
-              'All Brands',
-              null,
-            ), // "See All" not needed as it's the main list
-            const SizedBox(height: 15),
-
-            // List of Brands dynamically from API data
-            _buildBrandList(),
-            const SizedBox(height: 20), // Padding at the bottom
-          ],
-        ),
-      ),
     );
   }
 
@@ -182,6 +230,15 @@ class _BrandScreenState extends State<BrandScreen> {
     return AppBar(
       backgroundColor: Colors.white,
       elevation: 0,
+      leading: IconButton(
+        icon: const Icon(
+          Icons.arrow_back_ios,
+          color: Colors.black,
+        ), // Back button
+        onPressed: () {
+          Navigator.pop(context); // Pop the current screen off the stack
+        },
+      ),
       title: const Text(
         'Brands',
         style: TextStyle(
@@ -278,27 +335,7 @@ class _BrandScreenState extends State<BrandScreen> {
 
   // Builds the list of brands (now using fetched data and Lottie animation)
   Widget _buildBrandList() {
-    if (_isLoadingInitialData) {
-      // Use combined loading state
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(20.0),
-          child: CircularProgressIndicator(color: primaryPink),
-        ),
-      );
-    } else if (_initialDataErrorMessage != null) {
-      // Use combined error message
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Text(
-            _initialDataErrorMessage!,
-            style: const TextStyle(color: Colors.red, fontSize: 16),
-            textAlign: TextAlign.center,
-          ),
-        ),
-      );
-    } else if (_brands.isEmpty) {
+    if (_brands.isEmpty) {
       return const Center(
         child: Padding(
           padding: EdgeInsets.all(20.0),
