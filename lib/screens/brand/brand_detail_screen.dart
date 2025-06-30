@@ -25,7 +25,9 @@ class _BrandDetailScreenState extends State<BrandDetailScreen> {
 
   final ApiService _apiService = ApiService();
 
-  List<Product> _products = [];
+  List<Product> _products = []; // Stores all products for this brand
+  List<Product> _filteredProducts =
+      []; // Stores products filtered by search query
   Map<int, Brand> _brandsMap =
       {}; // To map brand IDs to brand names for product cards
   Map<int, Category> _categoriesMap =
@@ -35,10 +37,40 @@ class _BrandDetailScreenState extends State<BrandDetailScreen> {
   bool _isLoadingInitialData = true;
   String? _initialDataErrorMessage;
 
+  // Controller for the search input field
+  final TextEditingController _searchController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
     _fetchInitialData(); // Fetch all necessary data when the screen initializes
+    _searchController.addListener(
+      _filterProducts,
+    ); // Listen for search input changes
+  }
+
+  @override
+  void dispose() {
+    _searchController.removeListener(_filterProducts); // Remove listener
+    _searchController.dispose(); // Dispose the controller
+    super.dispose();
+  }
+
+  // Function to filter products based on the search query
+  void _filterProducts() {
+    final String query = _searchController.text.toLowerCase();
+    setState(() {
+      _filteredProducts = _products.where((product) {
+        // Get the category name safely
+        final String? categoryName = _categoriesMap[product.categoryId]?.name;
+
+        // Filter by product name, description, or category name
+        return (product.name?.toLowerCase().contains(query) ?? false) ||
+            (product.description?.toLowerCase().contains(query) ?? false) ||
+            (categoryName?.toLowerCase().contains(query) ??
+                false); // Safely check category name
+      }).toList();
+    });
   }
 
   // Fetches initial data: categories, brands (for product card display) and then products by category
@@ -59,6 +91,7 @@ class _BrandDetailScreenState extends State<BrandDetailScreen> {
         setState(() {
           _isLoadingInitialData = false;
         });
+        _filterProducts(); // After fetching, filter to show all initially
       }
     } on ErrorResponse catch (e) {
       if (mounted) {
@@ -154,7 +187,8 @@ class _BrandDetailScreenState extends State<BrandDetailScreen> {
 
         setState(() {
           _products = filteredProducts;
-          // Update product count
+          // Note: _products is now all products for this brand.
+          // _filteredProducts will be set by _filterProducts() call after this.
         });
         print(
           'BrandDetail: Products fetched and filtered successfully for ${widget.brandName}: ${_products.length} items',
@@ -294,15 +328,16 @@ class _BrandDetailScreenState extends State<BrandDetailScreen> {
         children: <Widget>[
           Icon(Icons.search, color: Colors.grey[600]), // Search icon
           const SizedBox(width: 10),
-          const Expanded(
+          Expanded(
             child: TextField(
-              decoration: InputDecoration(
-                hintText: 'Search',
+              controller: _searchController, // Connect controller
+              decoration: const InputDecoration(
+                hintText: 'Search products...', // Updated hint text
                 border: InputBorder.none, // No underline
                 isDense: true, // Reduce vertical space
                 contentPadding: EdgeInsets.zero, // Remove internal padding
               ),
-              style: TextStyle(fontSize: 16),
+              style: const TextStyle(fontSize: 16),
             ),
           ),
           IconButton(
@@ -321,17 +356,31 @@ class _BrandDetailScreenState extends State<BrandDetailScreen> {
 
   // Builds the grid of products
   Widget _buildProductGrid() {
-    if (_products.isEmpty) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(20.0),
-          child: Text(
-            'No products found for this brand.',
-            style: TextStyle(color: Colors.grey, fontSize: 16),
-            textAlign: TextAlign.center,
+    if (_filteredProducts.isEmpty) {
+      if (_products.isEmpty && _initialDataErrorMessage == null) {
+        return const Center(
+          child: Padding(
+            padding: EdgeInsets.all(20.0),
+            child: Text(
+              'No products found for this brand.',
+              style: TextStyle(color: Colors.grey, fontSize: 16),
+              textAlign: TextAlign.center,
+            ),
           ),
-        ),
-      );
+        );
+      } else if (_searchController.text.isNotEmpty) {
+        return const Center(
+          child: Padding(
+            padding: EdgeInsets.all(20.0),
+            child: Text(
+              'No products match your search in this brand.',
+              style: TextStyle(color: Colors.grey, fontSize: 16),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        );
+      }
+      return const SizedBox.shrink(); // Should not be reached if previous checks cover
     } else {
       return GridView.builder(
         shrinkWrap: true, // Take only as much space as needed
@@ -344,9 +393,9 @@ class _BrandDetailScreenState extends State<BrandDetailScreen> {
           childAspectRatio:
               0.75, // Aspect ratio of each grid item (adjusted to fit product info)
         ),
-        itemCount: _products.length,
+        itemCount: _filteredProducts.length, // Use filtered list
         itemBuilder: (context, index) {
-          return _buildProductCard(_products[index]);
+          return _buildProductCard(_filteredProducts[index]);
         },
       );
     }
