@@ -1105,14 +1105,7 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        title: const Text(
-          'Manage Products',
-        ), // Changed title to be static for consistency
-        backgroundColor: primaryPink,
-        foregroundColor: Colors.white,
-        centerTitle: true,
-      ),
+      appBar: _buildAppBar(context),
       body: overallLoading
           ? const Center(child: CircularProgressIndicator(color: primaryPink))
           : overallErrorMessage != null
@@ -1145,6 +1138,29 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
                 ],
               ),
             ),
+    );
+  }
+
+  // Custom AppBar for the Profile Screen
+  PreferredSizeWidget _buildAppBar(BuildContext context) {
+    return AppBar(
+      leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+          onPressed: () {
+            Navigator.pop(context); // Go back to the Admin Dashboard
+          },
+      ),
+      backgroundColor: Colors.white,
+      elevation: 0,
+      title: const Text(
+        'Manage Products',
+        style: TextStyle(
+          color: Colors.black,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      centerTitle: true,
     );
   }
 
@@ -1488,6 +1504,7 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
           }
 
           return Card(
+            color: Colors.white,
             margin: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 4.0),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
