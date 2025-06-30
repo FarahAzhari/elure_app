@@ -1,3 +1,5 @@
+import 'package:elure_app/screens/category/category_screen.dart';
+import 'package:elure_app/screens/product/product_list_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:elure_app/services/local_storage_service.dart';
 import 'package:elure_app/models/api_models.dart';
@@ -315,7 +317,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       _buildSectionHeader('Categories', () {
                         print('See All Categories tapped from Home');
                         // You can navigate to a dedicated Category Screen here if needed
-                        // Example: Navigator.push(context, MaterialPageRoute(builder: (context) => CategoryScreen()));
+                        Navigator.push(context, MaterialPageRoute(builder: (context) => CategoryScreen()));
                       }),
                       const SizedBox(height: 15),
 
@@ -327,6 +329,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       _buildSectionHeader('Best Sellers', () {
                         print('See All Best Sellers tapped from Home');
                         // You can navigate to a screen showing all products here
+                        Navigator.push(context, MaterialPageRoute(builder: (context) => ProductListScreen()));
                       }),
                       const SizedBox(height: 15),
 
@@ -360,9 +363,8 @@ class _HomeScreenState extends State<HomeScreen> {
             // User Profile Picture
             const CircleAvatar(
               radius: 25,
-              backgroundImage: NetworkImage(
-                'https://placehold.co/100x100/FF00FF/FFFFFF?text=User',
-              ), // Placeholder image (assuming User model doesn't have image URL)
+              backgroundColor: primaryPink,
+              child: Icon(Icons.person, color: Colors.white,),
             ),
             const SizedBox(width: 10),
             // Welcome message and user name
@@ -708,7 +710,7 @@ class _HomeScreenState extends State<HomeScreen> {
         crossAxisCount: 2, // Two items per row
         crossAxisSpacing: 15, // Horizontal spacing
         mainAxisSpacing: 15, // Vertical spacing
-        childAspectRatio: 0.7, // Aspect ratio of each grid item
+        childAspectRatio: 0.6, // Aspect ratio of each grid item
       ),
       itemCount: productsToDisplay.length, // Use productsToDisplay
       itemBuilder: (context, index) {
@@ -761,8 +763,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final String displayDiscount =
         (productDiscount != null && productDiscount > 0)
-        ? '${productDiscount.toStringAsFixed(0)}%' // Display the integer percentage directly
-        : '0%';
+            ? '${productDiscount.toStringAsFixed(0)}%' // Display the integer percentage directly
+            : '0%';
 
     // Get brand name from the map using brandId
     final String brandName =
@@ -812,7 +814,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     errorBuilder: (context, error, stackTrace) => Container(
                       height: 150,
                       color: Colors.grey[200],
-                      child: const Center(child: Icon(Icons.error)),
+                      child: const Icon(Icons.error, size: 50),
                     ),
                   ),
                 ),
@@ -835,7 +837,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         '$displayDiscount OFF', // Use actual calculated discount
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 12,
+                          fontSize: 12, // Fixed font size
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -860,7 +862,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Icon(
                       Icons.favorite_border,
                       color: Colors.grey[700],
-                      size: 20,
+                      size: 20, // Fixed icon size
                     ),
                   ),
                 ),
@@ -869,17 +871,17 @@ class _HomeScreenState extends State<HomeScreen> {
                   bottom: 0,
                   right: 0,
                   child: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
+                    width: 40, // Fixed width
+                    height: 40, // Fixed height
+                    decoration: const BoxDecoration(
                       color: primaryPink, // Pink background for the button
-                      borderRadius: const BorderRadius.only(
+                      borderRadius: BorderRadius.only(
                         topLeft: Radius.circular(15),
                         bottomRight: Radius.circular(15),
                       ),
                     ),
                     child: IconButton(
-                      icon: const Icon(Icons.add, color: Colors.white),
+                      icon: const Icon(Icons.add, color: Colors.white, size: 20), // Fixed icon size
                       onPressed: () => _handleAddToCart(product),
                     ),
                   ),
@@ -887,7 +889,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
             Padding(
-              padding: const EdgeInsets.all(10.0),
+              padding: const EdgeInsets.all(10),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
@@ -895,34 +897,32 @@ class _HomeScreenState extends State<HomeScreen> {
                     product.name ??
                         'Unknown Product', // Use product name from API
                     style: const TextStyle(
-                      fontSize: 16,
+                      fontSize: 16, // Fixed font size
                       fontWeight: FontWeight.w600,
                     ),
-                    maxLines: 2,
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 5),
-                  Row(
-                    // Added Row to hold price texts
+                  // This is the section that was changed to fix overflow
+                  Column( // Changed from Row to Column
+                    crossAxisAlignment: CrossAxisAlignment.start, // Align text to the left
                     children: [
                       if (productPrice != null &&
                           productDiscount != null &&
                           productDiscount > 0)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 8.0),
-                          child: Text(
-                            displayOriginalPrice,
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey[600],
-                              decoration: TextDecoration.lineThrough,
-                            ),
+                        Text(
+                          displayOriginalPrice,
+                          style: TextStyle(
+                            fontSize: 14, // Fixed font size
+                            color: Colors.grey[600],
+                            decoration: TextDecoration.lineThrough,
                           ),
                         ),
                       Text(
                         displayCurrentPrice, // Use current price (from API price)
                         style: const TextStyle(
-                          fontSize: 15,
+                          fontSize: 16, // Fixed font size
                           fontWeight: FontWeight.bold,
                           color: primaryPink, // Pink for price
                         ),
@@ -932,7 +932,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 5),
                   Text(
                     brandName, // Use resolved brand name
-                    style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                    style: TextStyle(fontSize: 14, color: Colors.grey[600]), // Fixed font size
+                    maxLines: 1, // Ensure brand name doesn't overflow
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
