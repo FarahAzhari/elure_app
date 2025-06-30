@@ -238,12 +238,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       child: Row(
         children: <Widget>[
-          const CircleAvatar(
-            radius: 35,
-            backgroundImage: NetworkImage(
-              'https://placehold.co/100x100/FFC0CB/000000?text=JW',
-            ), // Placeholder for Jenny Wilson
-          ),
+          // User Profile Picture
+            const CircleAvatar(
+              radius: 35,
+              backgroundColor: primaryPink,
+              child: Icon(Icons.person, color: Colors.white,),
+            ),
           const SizedBox(width: 15),
           Expanded(
             child: Column(
