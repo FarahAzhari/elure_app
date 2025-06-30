@@ -17,11 +17,16 @@ class _CategoryScreenState extends State<CategoryScreen> {
   final ApiService _apiService = ApiService();
 
   List<Category> _categories = [];
+  List<Category> _filteredCategories =
+      []; // New list to hold filtered categories
   Map<int, int> _productsCountMap = {}; // Maps categoryId to product count
 
   // Combined loading state for initial data
   bool _isLoadingInitialData = true;
   String? _initialDataErrorMessage;
+
+  // Controller for the search input field
+  final TextEditingController _searchController = TextEditingController();
 
   // Lottie animation URL to be used for all category icons
   static const String _lottieCategoryIconUrl =
@@ -31,6 +36,26 @@ class _CategoryScreenState extends State<CategoryScreen> {
   void initState() {
     super.initState();
     _fetchInitialData(); // Fetch all necessary data when the screen initializes
+
+    // Add a listener to the search controller to filter categories as the user types
+    _searchController.addListener(_filterCategories);
+  }
+
+  @override
+  void dispose() {
+    _searchController.removeListener(_filterCategories); // Remove listener
+    _searchController.dispose(); // Dispose the controller
+    super.dispose();
+  }
+
+  // Function to filter categories based on the search query
+  void _filterCategories() {
+    final String query = _searchController.text.toLowerCase();
+    setState(() {
+      _filteredCategories = _categories.where((category) {
+        return (category.name?.toLowerCase().contains(query) ?? false);
+      }).toList();
+    });
   }
 
   // Function to fetch all initial data (categories and products)
@@ -50,6 +75,7 @@ class _CategoryScreenState extends State<CategoryScreen> {
         setState(() {
           _isLoadingInitialData = false;
         });
+        _filterCategories(); // After fetching, filter to show all initially
       }
     } on ErrorResponse catch (e) {
       if (mounted) {
@@ -218,6 +244,12 @@ class _CategoryScreenState extends State<CategoryScreen> {
     return AppBar(
       backgroundColor: Colors.white,
       elevation: 0,
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+        onPressed: () {
+          Navigator.pop(context); // Pop the current screen off the stack
+        },
+      ),
       title: const Text(
         'Categories',
         style: TextStyle(
@@ -256,15 +288,16 @@ class _CategoryScreenState extends State<CategoryScreen> {
         children: <Widget>[
           Icon(Icons.search, color: Colors.grey[600]), // Search icon
           const SizedBox(width: 10),
-          const Expanded(
+          Expanded(
             child: TextField(
-              decoration: InputDecoration(
-                hintText: 'Search',
+              controller: _searchController, // Connect controller
+              decoration: const InputDecoration(
+                hintText: 'Search categories...', // Updated hint text
                 border: InputBorder.none, // No underline
                 isDense: true, // Reduce vertical space
                 contentPadding: EdgeInsets.zero, // Remove internal padding
               ),
-              style: TextStyle(fontSize: 16),
+              style: const TextStyle(fontSize: 16),
             ),
           ),
           IconButton(
@@ -312,27 +345,41 @@ class _CategoryScreenState extends State<CategoryScreen> {
     );
   }
 
-  // Builds the list of categories (now with product count)
+  // Builds the list of categories (now with product count and search filtering)
   Widget _buildCategoryList() {
-    if (_categories.isEmpty) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(20.0),
-          child: Text(
-            'No categories found.',
-            style: TextStyle(color: Colors.grey, fontSize: 16),
-            textAlign: TextAlign.center,
+    if (_filteredCategories.isEmpty) {
+      if (_categories.isEmpty && _initialDataErrorMessage == null) {
+        return const Center(
+          child: Padding(
+            padding: EdgeInsets.all(20.0),
+            child: Text(
+              'No categories found.',
+              style: TextStyle(color: Colors.grey, fontSize: 16),
+              textAlign: TextAlign.center,
+            ),
           ),
-        ),
-      );
+        );
+      } else if (_searchController.text.isNotEmpty) {
+        return const Center(
+          child: Padding(
+            padding: EdgeInsets.all(20.0),
+            child: Text(
+              'No categories match your search.',
+              style: TextStyle(color: Colors.grey, fontSize: 16),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        );
+      }
+      return const SizedBox.shrink(); // Should not be reached if previous checks cover
     } else {
       return ListView.builder(
         shrinkWrap: true, // Take only as much space as needed
         physics:
             const NeverScrollableScrollPhysics(), // Disable scrolling within this list
-        itemCount: _categories.length,
+        itemCount: _filteredCategories.length,
         itemBuilder: (context, index) {
-          final category = _categories[index];
+          final category = _filteredCategories[index]; // Use filtered list
           // Get product count for the current category, default to 0 if not found
           final int productCount = _productsCountMap[category.id] ?? 0;
           return Column(
