@@ -84,14 +84,14 @@ class _CategoryScreenState extends State<CategoryScreen> {
     } on ErrorResponse catch (e) {
       if (mounted) {
         _initialDataErrorMessage = _initialDataErrorMessage != null
-            ? '${_initialDataErrorMessage}\nCategories: ${e.message}'
+            ? '$_initialDataErrorMessage\nCategories: ${e.message}'
             : 'Categories: ${e.message}';
         print('Error fetching categories: ${e.message}');
       }
     } catch (e) {
       if (mounted) {
         _initialDataErrorMessage = _initialDataErrorMessage != null
-            ? '${_initialDataErrorMessage}\nCategories: ${e.toString()}'
+            ? '$_initialDataErrorMessage\nCategories: ${e.toString()}'
             : 'Categories: ${e.toString()}';
         print('Unexpected error fetching categories: $e');
       }
@@ -121,14 +121,14 @@ class _CategoryScreenState extends State<CategoryScreen> {
     } on ErrorResponse catch (e) {
       if (mounted) {
         _initialDataErrorMessage = _initialDataErrorMessage != null
-            ? '${_initialDataErrorMessage}\nProducts: ${e.message}'
+            ? '$_initialDataErrorMessage\nProducts: ${e.message}'
             : 'Products: ${e.message}';
         print('Error fetching products for count: ${e.message}');
       }
     } catch (e) {
       if (mounted) {
         _initialDataErrorMessage = _initialDataErrorMessage != null
-            ? '${_initialDataErrorMessage}\nProducts: ${e.toString()}'
+            ? '$_initialDataErrorMessage\nProducts: ${e.toString()}'
             : 'Products: ${e.toString()}';
         print('Unexpected error fetching products for count: $e');
       }
@@ -140,27 +140,76 @@ class _CategoryScreenState extends State<CategoryScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: _buildAppBar(context), // Custom AppBar for category screen
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16.0,
-                vertical: 10.0,
+      body: _isLoadingInitialData
+          ? const Center(child: CircularProgressIndicator(color: primaryPink))
+          : _initialDataErrorMessage != null
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      color: Colors.red,
+                      size: 60,
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      _initialDataErrorMessage!,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.red, fontSize: 16),
+                    ),
+                    const SizedBox(height: 20),
+                    ElevatedButton(
+                      onPressed: _fetchInitialData,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryPink,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(25),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 10,
+                        ),
+                      ),
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
               ),
-              child: _buildSearchBar(), // Search bar for categories
+            )
+          : RefreshIndicator(
+              // Added RefreshIndicator here
+              onRefresh:
+                  _fetchInitialData, // Calls _fetchInitialData on pull-to-refresh
+              color: primaryPink, // Customize the refresh indicator color
+              child: SingleChildScrollView(
+                // Kept SingleChildScrollView inside RefreshIndicator
+                physics:
+                    const AlwaysScrollableScrollPhysics(), // Important for RefreshIndicator in case content is small
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16.0,
+                        vertical: 10.0,
+                      ),
+                      child: _buildSearchBar(), // Search bar for categories
+                    ),
+                    const SizedBox(height: 20),
+
+                    _buildSectionHeader('All Categories', null),
+                    const SizedBox(height: 15),
+
+                    _buildCategoryList(),
+                    const SizedBox(height: 20), // Padding at the bottom
+                  ],
+                ),
+              ),
             ),
-            const SizedBox(height: 20),
-
-            _buildSectionHeader('All Categories', null),
-            const SizedBox(height: 15),
-
-            _buildCategoryList(),
-            const SizedBox(height: 20), // Padding at the bottom
-          ],
-        ),
-      ),
     );
   }
 
@@ -265,27 +314,7 @@ class _CategoryScreenState extends State<CategoryScreen> {
 
   // Builds the list of categories (now with product count)
   Widget _buildCategoryList() {
-    if (_isLoadingInitialData) {
-      // Use combined loading state
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(20.0),
-          child: CircularProgressIndicator(color: primaryPink),
-        ),
-      );
-    } else if (_initialDataErrorMessage != null) {
-      // Use combined error message
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Text(
-            _initialDataErrorMessage!,
-            style: const TextStyle(color: Colors.red, fontSize: 16),
-            textAlign: TextAlign.center,
-          ),
-        ),
-      );
-    } else if (_categories.isEmpty) {
+    if (_categories.isEmpty) {
       return const Center(
         child: Padding(
           padding: EdgeInsets.all(20.0),
