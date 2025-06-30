@@ -244,12 +244,6 @@ class _CategoryScreenState extends State<CategoryScreen> {
     return AppBar(
       backgroundColor: Colors.white,
       elevation: 0,
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
-        onPressed: () {
-          Navigator.pop(context); // Pop the current screen off the stack
-        },
-      ),
       title: const Text(
         'Categories',
         style: TextStyle(
