@@ -7,7 +7,7 @@ import 'package:elure_app/screens/product/product_detail_screen.dart'; // Import
 
 class ProductListScreen extends StatefulWidget {
   final String
-  initialSearchQuery; // Optional: to receive search query from HomeScreen
+      initialSearchQuery; // Optional: to receive search query from HomeScreen
 
   const ProductListScreen({super.key, this.initialSearchQuery = ''});
 
@@ -173,77 +173,81 @@ class _ProductListScreenState extends State<ProductListScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: primaryPink))
           : _errorMessage != null
-          ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.error_outline,
-                      color: Colors.red,
-                      size: 60,
-                    ),
-                    const SizedBox(height: 20),
-                    Text(
-                      _errorMessage!,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.red, fontSize: 16),
-                    ),
-                    const SizedBox(height: 20),
-                    ElevatedButton(
-                      onPressed: _loadAllData,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: primaryPink,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(25),
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.error_outline,
+                          color: Colors.red,
+                          size: 60,
                         ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 10,
+                        const SizedBox(height: 20),
+                        Text(
+                          _errorMessage!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.red, fontSize: 16),
                         ),
+                        const SizedBox(height: 20),
+                        ElevatedButton(
+                          onPressed: _loadAllData,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryPink,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(25),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 10,
+                            ),
+                          ),
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : RefreshIndicator( // Added RefreshIndicator here
+                  onRefresh: _loadAllData, // Calls _loadAllData on pull-to-refresh
+                  color: primaryPink, // Customize the refresh indicator color
+                  child: Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: _buildSearchBar(), // Local search bar for this screen
                       ),
-                      child: const Text('Retry'),
-                    ),
-                  ],
-                ),
-              ),
-            )
-          : Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: _buildSearchBar(), // Local search bar for this screen
-                ),
-                Expanded(
-                  child: _filteredProducts.isEmpty
-                      ? const Center(
-                          child: Text(
-                            'No products found.',
-                            style: TextStyle(color: Colors.grey, fontSize: 16),
-                          ),
-                        )
-                      : GridView.builder(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16.0,
-                            vertical: 10.0,
-                          ),
-                          gridDelegate:
-                              const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 2,
-                                crossAxisSpacing: 15,
-                                mainAxisSpacing: 15,
-                                childAspectRatio: 0.7,
+                      Expanded(
+                        child: _filteredProducts.isEmpty
+                            ? const Center(
+                                child: Text(
+                                  'No products found.',
+                                  style: TextStyle(color: Colors.grey, fontSize: 16),
+                                ),
+                              )
+                            : GridView.builder(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16.0,
+                                  vertical: 10.0,
+                                ),
+                                gridDelegate:
+                                    const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 2,
+                                  crossAxisSpacing: 15,
+                                  mainAxisSpacing: 15,
+                                  childAspectRatio: 0.65, // Adjusted to make cards taller
+                                ),
+                                itemCount: _filteredProducts.length,
+                                itemBuilder: (context, index) {
+                                  return _buildProductCard(_filteredProducts[index]);
+                                },
                               ),
-                          itemCount: _filteredProducts.length,
-                          itemBuilder: (context, index) {
-                            return _buildProductCard(_filteredProducts[index]);
-                          },
-                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ],
-            ),
     );
   }
 
@@ -258,7 +262,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
         },
       ),
       title: const Text(
-        'Product Search',
+        'Products',
         style: TextStyle(
           color: Colors.black,
           fontSize: 20,
@@ -358,8 +362,8 @@ class _ProductListScreenState extends State<ProductListScreen> {
 
     final String displayDiscount =
         (productDiscount != null && productDiscount > 0)
-        ? '${productDiscount.toStringAsFixed(0)}%'
-        : '0%';
+            ? '${productDiscount.toStringAsFixed(0)}%'
+            : '0%';
 
     final String brandName =
         _brandsMap[product.brandId]?.name ?? 'Unknown Brand';
@@ -486,24 +490,23 @@ class _ProductListScreenState extends State<ProductListScreen> {
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                     ),
-                    maxLines: 2,
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 5),
-                  Row(
+                  // Changed to Column for stacked prices
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       if (productPrice != null &&
                           productDiscount != null &&
                           productDiscount > 0)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 8.0),
-                          child: Text(
-                            displayOriginalPrice,
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey[600],
-                              decoration: TextDecoration.lineThrough,
-                            ),
+                        Text(
+                          displayOriginalPrice,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                            decoration: TextDecoration.lineThrough,
                           ),
                         ),
                       Text(
