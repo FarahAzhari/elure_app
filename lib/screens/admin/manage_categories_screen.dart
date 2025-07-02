@@ -477,6 +477,7 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
         itemBuilder: (context, index) {
           final category = _categories[index];
           return Card(
+            color: Colors.white,
             margin: const EdgeInsets.symmetric(vertical: 8.0),
             elevation: 2,
             shape: RoundedRectangleBorder(

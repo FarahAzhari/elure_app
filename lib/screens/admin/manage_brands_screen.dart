@@ -434,6 +434,7 @@ class _ManageBrandsScreenState extends State<ManageBrandsScreen> {
         itemBuilder: (context, index) {
           final brand = _brands[index];
           return Card(
+            color: Colors.white,
             margin: const EdgeInsets.symmetric(vertical: 8.0),
             elevation: 2,
             shape: RoundedRectangleBorder(
